@@ -24,6 +24,18 @@ function pickHunt() {
   if (s.hunt.ground !== best) E.setHunt(s, best);
 }
 
+// Greedy time split: chores when the next manual is in reach of rank, body training when the
+// body lags the qi stage, a hunt now and then for stones, otherwise meditate.
+function allocate() {
+  const wantManual = TECHNIQUES.some((tch, i) => tch.sect === s.sect && !s.techs[i].owned && tch.unlockRealm <= s.realm);
+  const bodyBehind = s.body.level < Math.min(E.bodyCap(s), E.globalStage(s)) && !E.canTemper(s);
+  const phase = Math.floor(t / 60) % 6;
+  if (wantManual && phase === 0) { pickChore(); return; }
+  if (bodyBehind && phase === 1) { E.setActivity(s, 'train'); return; }
+  if (phase === 2 && t % 120 < 30) { pickHunt(); if (s.hunt.ground !== null) return; }
+  E.setActivity(s, 'meditate');
+}
+
 function pickChore() {
   const open = CHORES.filter((c) => c.unlockRealm <= s.realm);
   const best = open[open.length - 1];
@@ -65,7 +77,7 @@ while (t < end) {
   while (E.canAdvance(s) && !E.atBottleneck(s)) E.advance(s);
   while (E.canTemper(s)) E.temperBody(s);
   if (E.atBottleneck(s) && E.canAdvance(s) && !E.sealedAtTop(s) && E.breakChance(s) >= 0.5) E.attemptBreakthrough(s);
-  if (t % 5 === 0) { shop(); pickHunt(); pickChore(); }
+  if (t % 5 === 0) { shop(); allocate(); }
   mark(`${REALMS[s.realm].name}`);
   const g = E.globalStage(s);
   if (g > lastG) { lastG = g; lastProgress = t; if (process.env.STAGES && s.lives <= Number(process.env.STAGES)) console.log(`   ${fmt(t)} L${s.lives} ${REALMS[s.realm].name} ${s.stage} qps=${E.qps(s).toExponential(2)} req=${E.stageReq(s).toExponential(2)} stones/s=${E.stonesPerSec(s).toExponential(2)} hunt=${s.hunt.ground} body=${s.body.level} techs=${s.techs.map(x=>x.lvl).join(',')}`); }

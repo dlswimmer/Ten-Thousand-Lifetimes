@@ -175,7 +175,7 @@ export const INNATE_QPS = 1;
 
 // Qi needed to fill the bar at global stage index g (realm * 9 + stage - 1).
 export const REQ_BASE = 25;
-export const REQ_GROWTH = 1.75;
+export const REQ_GROWTH = 1.65;
 export const REQ_REALM_JUMP = 3;
 
 export const TAP_SECONDS = 1; // a Circulate tap is worth this many seconds of qi
@@ -237,6 +237,7 @@ export const KARMA_NODES: KarmaNode[] = [
   { id: 'autoadvance', name: 'Flowing Stages', blurb: () => 'Automation: advance minor stages and temper the body on your own', baseCost: 6, costGrowth: 1, maxLevel: 1 },
   { id: 'autobreak', name: 'Heaven-Sensing Instinct', blurb: () => 'Automation: attempt breakthroughs when the odds are good', baseCost: 25, costGrowth: 1, maxLevel: 1, requires: 'autoadvance' },
   { id: 'fatedmeeting', name: 'Fated Meeting', blurb: () => 'Choose which sect\'s elder finds you in each new life', baseCost: 8, costGrowth: 1, maxLevel: 1 },
+  { id: 'unceasing', name: 'Unceasing Circulation', blurb: (l) => l === 0 ? 'Qi keeps flowing at 20% while you do chores, hunt or train' : `Qi flows at ${l * 20}% during other activities (next ${Math.min(100, (l + 1) * 20)}%)`, baseCost: 1500, costGrowth: 2.5, maxLevel: 5 },
   { id: 'seclusion', name: 'Deep Seclusion', blurb: (l) => `Offline gains capped at ${8 + l * 4}h (next ${8 + (l + 1) * 4}h)`, baseCost: 4, costGrowth: 2.5, maxLevel: 6 },
 ];
 
@@ -299,12 +300,15 @@ export const BODY_REALMS = ['Copper Skin', 'Iron Bone', 'Jade Marrow', 'Golden B
 export const BODY_LEVELS_PER_REALM = 9;
 export const BODY_COST_BASE = 15;
 export const BODY_COST_GROWTH = 1.7;
-export const VIGOR_BASE = 0.25; // vigor per second at the very start
+export const VIGOR_BASE = 0.6; // vigor per second of body training at the very start
 export const VIGOR_STAGE_GROWTH = 1.5; // vigor rate grows with your qi cultivation stage
 export const VIGOR_PER_KILL_SECONDS = 3; // a kill is worth this many seconds of vigor
-export const VIGOR_TRAIN_SECONDS = 0.5; // one tap of Train
-export const PHYSICAL_CHORE_VIGOR = 2; // physical chores double vigor while you do them
+export const VIGOR_TRAIN_SECONDS = 0.5; // one tap of Push harder while training
+export const PHYSICAL_CHORE_VIGOR = 0.5; // physical chores also train the body at this share of the training rate
 export const PHYSICAL_CHORES = ['water', 'gate', 'caravan'];
 export const BODY_STAT_GROWTH = { attack: 1.05, defense: 1.06, vitality: 1.06, speed: 1.02 };
 export const BODY_YEARS_PER_LEVEL = 1;
 export const SECT_BODY_AFFINITY = [1, 1.5, 1.5]; // Crimson Furnace and Stoneheart favour the body path
+
+export type Activity = 'meditate' | 'chores' | 'hunt' | 'train';
+export const ACTIVITY_NAMES: Record<Activity, string> = { meditate: 'Meditating', chores: 'Doing chores', hunt: 'Hunting', train: 'Training the body' };

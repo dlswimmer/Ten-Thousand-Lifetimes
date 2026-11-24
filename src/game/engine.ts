@@ -10,7 +10,7 @@ import {
   ELEMENT_STATS, STAT_REALM_MULT, STAT_STAGE_GROWTH, Stats, SECT_RANKS,
   BODY_REALMS, BODY_LEVELS_PER_REALM, BODY_COST_BASE, BODY_COST_GROWTH, VIGOR_BASE, VIGOR_STAGE_GROWTH,
   VIGOR_PER_KILL_SECONDS, VIGOR_TRAIN_SECONDS, PHYSICAL_CHORE_VIGOR, PHYSICAL_CHORES, BODY_STAT_GROWTH,
-  BODY_YEARS_PER_LEVEL, SECT_BODY_AFFINITY,
+  BODY_YEARS_PER_LEVEL, SECT_BODY_AFFINITY, type Activity,
 } from './data';
 
 export type LogKind = 'info' | 'good' | 'bad' | 'karma';
@@ -44,7 +44,7 @@ export interface PassingInfo {
 }
 
 export interface GameState {
-  version: 4;
+  version: 5;
   sect: number | null; // null until an elder brings you to a sect
   fatedSect: number; // the sect whose elder finds you this life
   contribution: number;
@@ -72,6 +72,7 @@ export interface GameState {
   autoBreakMin: number; // 0..1
   hunt: HuntState;
   body: { level: number; vigor: number };
+  activity: Activity; // only one at a time: qi flows only while meditating
   unlocked: string[]; // tabs opened so far; they stay open in later lives
   unseen: string[]; // newly opened tabs the player has not visited yet
   passing: PassingInfo | null; // set when a life ends, cleared when the next life starts
@@ -86,7 +87,7 @@ export interface GameState {
 
 export function newGame(now = Date.now()): GameState {
   const s: GameState = {
-    version: 4,
+    version: 5,
     sect: null, fatedSect: 0, contribution: 0, chore: { id: null, progress: 0, done: 0 },
     qi: 0, realm: 0, stage: 1, stones: 0, insight: 0, age: START_AGE, lifeQi: 0,
     techs: TECHNIQUES.map(() => ({ owned: false, lvl: 0, masteryXp: 0 })),
@@ -98,6 +99,7 @@ export function newGame(now = Date.now()): GameState {
     autoAdvance: true, autoBreak: true, autoBreakMin: 0.6,
     hunt: { ground: null, beastHp: 0, playerHp: 0, recover: 0, respawn: 0, kills: 0 },
     body: { level: 0, vigor: 0 },
+    activity: 'meditate',
     unlocked: ['cultivate'], unseen: [],
     passing: null,
     bestRealm: 0,
@@ -267,10 +269,30 @@ export function bodyCost(s: GameState): number {
   return BODY_COST_BASE * Math.pow(BODY_COST_GROWTH, s.body.level);
 }
 
+/** Vigor per second while training the body. */
 export function vigorPerSec(s: GameState): number {
   if (s.sect === null) return 0;
-  const physical = s.chore.id !== null && PHYSICAL_CHORES.includes(s.chore.id) ? PHYSICAL_CHORE_VIGOR : 1;
-  return VIGOR_BASE * Math.pow(VIGOR_STAGE_GROWTH, globalStage(s)) * physical * SECT_BODY_AFFINITY[s.sect];
+  return VIGOR_BASE * Math.pow(VIGOR_STAGE_GROWTH, globalStage(s)) * SECT_BODY_AFFINITY[s.sect];
+}
+
+/** Vigor per second from whatever you are doing right now. */
+export function currentVigorRate(s: GameState): number {
+  if (s.activity === 'train') return vigorPerSec(s);
+  if (s.activity === 'chores' && s.chore.id !== null && PHYSICAL_CHORES.includes(s.chore.id)) return vigorPerSec(s) * PHYSICAL_CHORE_VIGOR;
+  return 0;
+}
+
+/** Share of the meditation qi rate you keep while doing something else. */
+export function qiShare(s: GameState): number {
+  return s.activity === 'meditate' ? 1 : Math.min(1, 0.2 * k(s, 'unceasing'));
+}
+
+export function setActivity(s: GameState, a: Activity) {
+  if (s.sect === null || s.passing) return;
+  s.activity = a;
+  if (a === 'chores' && s.chore.id === null) s.chore = { id: CHORES[0].id, progress: 0, done: s.chore.done };
+  if (a === 'hunt' && s.hunt.ground === null) setHunt(s, 0);
+  if (a !== 'hunt') s.hunt.ground = null;
 }
 
 export function canTemper(s: GameState): boolean {
@@ -286,7 +308,7 @@ export function temperBody(s: GameState): boolean {
 }
 
 export function trainBody(s: GameState) {
-  if (s.sect === null || s.passing) return;
+  if (s.sect === null || s.passing || s.activity !== 'train') return;
   s.body.vigor += vigorPerSec(s) * VIGOR_TRAIN_SECONDS;
 }
 
@@ -378,7 +400,7 @@ export function canReincarnate(s: GameState): boolean {
 // ---------- actions ----------
 
 export function circulate(s: GameState) {
-  if (s.passing) return;
+  if (s.passing || s.activity !== 'meditate') return;
   const gain = Math.max(1, qps(s) * TAP_SECONDS);
   s.qi += gain;
   s.lifeQi += gain;
@@ -429,6 +451,7 @@ export function joinSect(s: GameState, sect: number) {
   s.techs[first].lvl = 1;
   s.equipped = [first];
   s.chore = { id: CHORES[0].id, progress: 0, done: 0 };
+  s.activity = 'meditate';
   log(s, `${SECTS[sect].elder} brings you to the ${SECTS[sect].name}. As a new Outer Disciple you receive ${TECHNIQUES[first].name}, a broom and a long list of chores.`, 'good');
   checkUnlocks(s);
 }
@@ -442,10 +465,11 @@ export function setChore(s: GameState, id: string | null) {
   const c = CHORES.find((x) => x.id === id);
   if (id !== null && (!c || c.unlockRealm > s.realm)) return;
   s.chore = { id, progress: 0, done: s.chore.done };
+  if (id !== null) s.activity = 'chores';
 }
 
 export function workHard(s: GameState) {
-  if (s.chore.id === null || s.passing) return;
+  if (s.chore.id === null || s.passing || s.activity !== 'chores') return;
   tickChore(s, CHORE_TAP_SECONDS);
 }
 
@@ -561,6 +585,7 @@ export function beginNextLife(s: GameState) {
   s.clarityPills = 0; s.longevityUsed = 0; s.bonusYears = 0; s.heartDemon = 0;
   s.hunt = { ground: null, beastHp: 0, playerHp: 0, recover: 0, respawn: 0, kills: 0 };
   s.body = { level: 0, vigor: 0 };
+  s.activity = 'meditate';
   s.lives += 1;
   s.root = rollRoot(s);
   s.fatedSect = fatedSectFor(s);
@@ -572,6 +597,7 @@ export function setHunt(s: GameState, ground: number | null) {
   if (s.sect === null) return;
   if (ground !== null && HUNT_GROUNDS[ground].unlockRealm > s.realm) return;
   s.hunt.ground = ground;
+  if (ground === null) { if (s.activity === 'hunt') s.activity = 'meditate'; } else s.activity = 'hunt';
   if (ground !== null) {
     s.hunt.beastHp = HUNT_GROUNDS[ground].stats.vitality;
     s.hunt.playerHp = playerStats(s).vitality;
@@ -592,7 +618,7 @@ function resolveKill(s: GameState) {
   const reward = g.stones * Math.pow(1.5, k(s, 'vein'));
   s.stones += reward;
   s.contribution += reward * HUNT_CONTRIB_SHARE;
-  s.body.vigor += vigorPerSec(s) * VIGOR_PER_KILL_SECONDS;
+  s.body.vigor += vigorPerSec(s) * VIGOR_PER_KILL_SECONDS * 0.5;
   h.kills += 1;
   h.beastHp = g.stats.vitality;
   h.respawn = HUNT_RESPAWN_S;
@@ -630,15 +656,16 @@ function tickHunt(s: GameState, dt: number) {
 /** Advance the game by dt seconds. ageRate scales how fast lifespan passes. */
 export function tick(s: GameState, dt: number, ageRate = 1) {
   if (s.passing || s.sect === null) return; // a mortal waiting at the fair does not age
-  const gain = qps(s) * dt;
+  const share = qiShare(s);
+  const gain = qps(s) * share * dt;
   s.qi += gain;
   s.lifeQi += gain;
   s.stones += stonesPerSec(s) * dt;
-  tickChore(s, dt);
-  s.body.vigor += vigorPerSec(s) * dt;
-  for (const i of s.equipped) s.techs[i].masteryXp += dt;
+  if (s.activity === 'chores') tickChore(s, dt);
+  s.body.vigor += currentVigorRate(s) * dt;
+  for (const i of s.equipped) s.techs[i].masteryXp += dt * share;
   if (s.heartDemon > 0) s.heartDemon = Math.max(0, s.heartDemon - dt);
-  tickHunt(s, dt);
+  if (s.activity === 'hunt') tickHunt(s, dt);
 
   if (k(s, 'autoadvance') && s.autoAdvance) {
     let guard = 0;
@@ -693,7 +720,7 @@ export function applyOffline(s: GameState, now = Date.now()): OfflineReport | nu
   };
 }
 
-export const SAVE_KEY = 'ten-thousand-lifetimes-save-v4';
+export const SAVE_KEY = 'ten-thousand-lifetimes-save-v5';
 
 export function serialize(s: GameState): string {
   return btoa(unescape(encodeURIComponent(JSON.stringify(s))));
@@ -702,7 +729,7 @@ export function serialize(s: GameState): string {
 export function deserialize(text: string): GameState | null {
   try {
     const obj = JSON.parse(decodeURIComponent(escape(atob(text.trim()))));
-    if (!obj || obj.version !== 4) return null;
+    if (!obj || obj.version !== 5) return null;
     const fresh = newGame();
     const merged: GameState = { ...fresh, ...obj };
     // tolerate saves from builds with fewer techniques

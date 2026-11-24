@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as E from './game/engine';
 import {
-  ELEMENT_GLYPH, FINAL_REALM, HUNT_GROUNDS, SECTS, CHORES, PHYSICAL_CHORES, STAT_NAMES, type Stats, ELEMENT_STATS, KARMA_NODES, LONGEVITY_PILL_YEARS, MAX_BREAK_PILLS,
+  ELEMENT_GLYPH, FINAL_REALM, HUNT_GROUNDS, SECTS, CHORES, PHYSICAL_CHORES, ACTIVITY_NAMES, type Activity, STAT_NAMES, type Stats, ELEMENT_STATS, KARMA_NODES, LONGEVITY_PILL_YEARS, MAX_BREAK_PILLS,
   MAX_LONGEVITY_PILLS, PILLS, REALMS, ROOT_GRADES, STAGES_PER_REALM, TECHNIQUES, TECH_MILESTONES,
   clarityPillCost, longevityPillCost,
 } from './game/data';
@@ -84,6 +84,7 @@ export default function App() {
   }, []);
 
   const onCirculate = (e: React.PointerEvent) => {
+    if (stateRef.current.activity !== 'meditate') { act((x) => E.setActivity(x, 'meditate')); return; }
     const gain = Math.max(1, E.qps(stateRef.current));
     act(E.circulate);
     const rect = ((e.currentTarget as HTMLElement).parentElement ?? (e.currentTarget as HTMLElement)).getBoundingClientRect();
@@ -214,17 +215,20 @@ function Cultivate({ s, act, onCirculate, floaters }: { s: E.GameState; act: Act
   const sealed = E.sealedAtTop(s);
   const ready = E.canAdvance(s);
   const chance = E.breakChance(s);
-  const rate = E.qps(s);
-  const eta = ready ? 0 : (req - s.qi) / Math.max(rate, 1e-9);
+  const meditating = s.activity === 'meditate';
+  const rate = E.qps(s) * E.qiShare(s);
+  const eta = ready ? 0 : rate > 0 ? (req - s.qi) / rate : Infinity;
   return (
     <section className="cultivate">
+      <ActivityBar s={s} act={act} />
+
       <div className="qi-readout">
         <div className="qi-number">{fmt(s.qi)}</div>
-        <div className="muted">qi · +{fmt(rate)} per second{s.heartDemon > 0 && <span className="demon"> · heart demon {Math.ceil(s.heartDemon)}s</span>}</div>
+        <div className="muted">qi · +{fmt(rate)} per second{!meditating && E.qiShare(s) === 0 ? ' · not meditating' : ''}{s.heartDemon > 0 && <span className="demon"> · heart demon {Math.ceil(s.heartDemon)}s</span>}</div>
       </div>
 
       <div className="orb-wrap">
-        <button className="orb" onPointerDown={onCirculate} aria-label="Circulate qi">
+        <button className={`orb ${meditating ? '' : 'resting'}`} onPointerDown={onCirculate} aria-label={meditating ? 'Circulate qi' : 'Meditate'}>
           <svg viewBox="0 0 200 200" className="orb-svg" aria-hidden="true">
             <circle cx="100" cy="100" r="92" className="orb-ring" />
             <circle cx="100" cy="100" r="92" className="orb-progress" style={{ strokeDasharray: `${pct * 578} 578` }} />
@@ -232,7 +236,7 @@ function Cultivate({ s, act, onCirculate, floaters }: { s: E.GameState; act: Act
             <circle cx="100" cy="65" r="9" className="orb-dot-dark" />
             <circle cx="100" cy="135" r="9" className="orb-dot-light" />
           </svg>
-          <span className="orb-label">Circulate</span>
+          <span className="orb-label">{meditating ? 'Circulate' : 'Meditate'}</span>
         </button>
         {floaters.map((f) => (
           <span key={f.id} className="floater" style={{ left: f.x, top: f.y }}>{f.text}</span>
@@ -241,7 +245,7 @@ function Cultivate({ s, act, onCirculate, floaters }: { s: E.GameState; act: Act
 
       <div className="stage-bar">
         <div className="bar"><div className={`fill ${bottleneck ? 'gold' : ''}`} style={{ width: `${pct * 100}%` }} /></div>
-        <div className="bar-label"><span>{fmt(s.qi)} / {fmt(req)}</span><span className="muted">{ready ? 'ready' : `~${fmtTime(eta)}`}</span></div>
+        <div className="bar-label"><span>{fmt(s.qi)} / {fmt(req)}</span><span className="muted">{ready ? 'ready' : isFinite(eta) ? `~${fmtTime(eta)}` : 'meditate to fill'}</span></div>
       </div>
 
       {sealed ? (
@@ -284,12 +288,38 @@ function Cultivate({ s, act, onCirculate, floaters }: { s: E.GameState; act: Act
   );
 }
 
+function ActivityBar({ s, act }: { s: E.GameState; act: ActFn }) {
+  const options: Activity[] = ['meditate'];
+  if (s.unlocked.includes('techniques')) options.push('chores');
+  if (s.unlocked.includes('hunt')) options.push('hunt');
+  if (s.stage >= 2 || s.realm > 0 || s.body.level > 0) options.push('train');
+  const share = E.qiShare(s);
+  const label: Record<Activity, string> = { meditate: 'Meditate', chores: 'Chores', hunt: 'Hunt', train: 'Train body' };
+  return (
+    <div className="activity">
+      {options.length > 1 && (
+        <div className="segmented" role="group" aria-label="Activity">
+          {options.map((a) => (
+            <button key={a} className={s.activity === a ? 'on' : ''} onClick={() => act((x) => E.setActivity(x, a))}>{label[a]}</button>
+          ))}
+        </div>
+      )}
+      <span className="small muted">
+        {ACTIVITY_NAMES[s.activity]}.{' '}
+        {s.activity === 'meditate'
+          ? 'Qi flows and your manuals gain mastery.'
+          : share > 0 ? `Qi still flows at ${Math.round(share * 100)}% thanks to Unceasing Circulation.` : 'Qi does not flow until you return to meditation.'}
+      </span>
+    </div>
+  );
+}
+
 function BodyPanel({ s, act }: { s: E.GameState; act: ActFn }) {
   const cost = E.bodyCost(s);
   const capped = s.body.level >= E.bodyCap(s);
   const pct = capped ? 1 : Math.min(1, s.body.vigor / cost);
-  const rate = E.vigorPerSec(s);
-  const physical = s.chore.id !== null && PHYSICAL_CHORES.includes(s.chore.id);
+  const rate = E.currentVigorRate(s);
+  const training = s.activity === 'train';
   return (
     <div className="body-panel">
       <div className="card-head">
@@ -297,11 +327,13 @@ function BodyPanel({ s, act }: { s: E.GameState; act: ActFn }) {
           <b>Body cultivation · {E.bodyRealmName(s.body.level)}</b>
           <span className="small muted">Tempering raises attack, defense and vitality, and adds a year of life per level.</span>
         </div>
-        <button className="btn small" onClick={() => act(E.trainBody)}>Train</button>
+        {training
+          ? <button className="btn small primary" onClick={() => act(E.trainBody)}>Push harder</button>
+          : <button className="btn small" onClick={() => act((x) => E.setActivity(x, 'train'))}>Start training</button>}
       </div>
       <div className="bar"><div className="fill body" style={{ width: `${pct * 100}%` }} /></div>
       <div className="bar-label">
-        <span>{fmt(s.body.vigor)} / {fmt(cost)} vigor · +{fmt(rate)}/s{physical ? ' (physical chore x2)' : ''}</span>
+        <span>{fmt(s.body.vigor)} / {fmt(cost)} vigor · {rate > 0 ? `+${fmt(rate)}/s` : 'train or do physical chores to gain vigor'}</span>
         {capped
           ? <span className="muted">Your qi realm limits the body here</span>
           : <button className="btn small gold" disabled={!E.canTemper(s)} onClick={() => act(E.temperBody)}>Temper</button>}
@@ -383,7 +415,9 @@ function Chores({ s, act }: { s: E.GameState; act: ActFn }) {
               <b>{CHORES[current].name}</b>
               <span className="small muted">+{fmt(E.choreReward(s, current))} contribution each time · done {s.chore.done} times</span>
             </div>
-            <button className="btn small primary" onClick={() => act(E.workHard)}>Work hard</button>
+            {s.activity === 'chores'
+              ? <button className="btn small primary" onClick={() => act(E.workHard)}>Work hard</button>
+              : <button className="btn small" onClick={() => act((x) => E.setActivity(x, 'chores'))}>Resume chores</button>}
           </div>
           <div className="bar"><div className="fill" style={{ width: `${(s.chore.progress / CHORES[current].seconds) * 100}%` }} /></div>
           <span className="small muted">{CHORES[current].blurb}</span>

@@ -222,3 +222,11 @@ button { font: inherit; color: inherit; }
 
 .tab-glyph { position: relative; }
 .new-dot { position: absolute; top: 0; right: -6px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+
+/* activities */
+.activity { display: grid; gap: 6px; }
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 3px; }
+.segmented button { background: none; border: none; border-radius: 9px; padding: 8px 4px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.segmented button.on { background: var(--jade-dim); color: var(--text); }
+.orb.resting { box-shadow: none; filter: saturate(0.4); }
+.orb.resting .orb-swirl, .orb.resting .orb-dot-dark, .orb.resting .orb-dot-light { animation-play-state: paused; }
