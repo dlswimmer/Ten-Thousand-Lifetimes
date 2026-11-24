@@ -6,7 +6,7 @@ import {
   REALMS, REALM_QI_MULT, REALM_STONE_MULT, REQ_BASE, REQ_GROWTH, REQ_REALM_JUMP, ROOT_GRADES,
   SECONDS_PER_YEAR, STAGES_PER_REALM, STAGE_QI_MULT, STAGE_STONE_MULT, START_AGE, STRIKE_MULT,
   TAP_SECONDS, TECHNIQUES, TECH_COST_GROWTH, TECH_MILESTONES, clarityPillCost, headStartStones,
-  longevityPillCost, memoryKeep, slotsForRealm, SECTS, starterManual, HUNT_CONTRIB_SHARE, CHORES, CHORE_STAGE_MULT, CHORE_REALM_MULT, CHORE_TAP_SECONDS,
+  longevityPillCost, memoryKeep, slotsForRealm, SECTS, starterManual, HUNT_CONTRIB_SHARE, CHORES, CHORE_STAGE_MULT, CHORE_REALM_MULT, CHORE_TAP_SECONDS, CHORE_SPEED_MIN, CHORE_SPEED_MAX, CHORE_STAT_EXP, CHORE_STAGE_SPEED,
   ELEMENT_STATS, STAT_REALM_MULT, STAT_STAGE_GROWTH, Stats, SECT_RANKS,
   BODY_REALMS, BODY_LEVELS_PER_REALM, BODY_COST_BASE, BODY_COST_GROWTH, VIGOR_BASE, VIGOR_STAGE_GROWTH,
   VIGOR_PER_KILL_SECONDS, VIGOR_TRAIN_SECONDS, PHYSICAL_CHORE_VIGOR, PHYSICAL_CHORES, BODY_STAT_GROWTH,
@@ -334,6 +334,12 @@ export function manualStatBonus(s: GameState): Stats {
   return b;
 }
 
+/** Stats of a cultivator at overall stage g with no manuals, body tempering or sect bonus. */
+export function baseStatsAt(g: number): Stats {
+  const p = 10 * Math.pow(STAT_STAGE_GROWTH, g) * Math.pow(STAT_REALM_MULT, Math.floor(g / STAGES_PER_REALM));
+  return { attack: p, defense: 0.6 * p, vitality: 10 * p, speed: 10 + 2 * g };
+}
+
 export function playerStats(s: GameState): Stats {
   const g = globalStage(s);
   const p = 10 * Math.pow(STAT_STAGE_GROWTH, g) * Math.pow(STAT_REALM_MULT, s.realm);
@@ -460,6 +466,31 @@ export function choreReward(s: GameState, i: number): number {
   return CHORES[i].contribution * Math.pow(CHORE_STAGE_MULT, globalStage(s)) * Math.pow(CHORE_REALM_MULT, s.realm);
 }
 
+export interface ChoreNeed { stat: string; need: number; have: number; speed: number }
+
+/** How fast a chore goes for you: slower below its soft requirement, up to twice as fast above it. */
+export function choreNeed(s: GameState, i: number): ChoreNeed | null {
+  const c = CHORES[i];
+  if (!c.stat || c.needStage === undefined) return null;
+  const clamp = (x: number) => Math.min(CHORE_SPEED_MAX, Math.max(CHORE_SPEED_MIN, x));
+  if (c.stat === 'cultivation') {
+    const have = globalStage(s);
+    return { stat: c.stat, need: c.needStage, have, speed: clamp(Math.pow(CHORE_STAGE_SPEED, have - c.needStage)) };
+  }
+  const need = baseStatsAt(c.needStage)[c.stat];
+  const have = playerStats(s)[c.stat];
+  return { stat: c.stat, need, have, speed: clamp(Math.pow(have / need, CHORE_STAT_EXP)) };
+}
+
+export function choreSpeed(s: GameState, i: number): number {
+  return choreNeed(s, i)?.speed ?? 1;
+}
+
+/** Contribution per second from doing chore i continuously. */
+export function choreRate(s: GameState, i: number): number {
+  return choreReward(s, i) * choreSpeed(s, i) / CHORES[i].seconds;
+}
+
 export function setChore(s: GameState, id: string | null) {
   if (s.sect === null) return;
   const c = CHORES.find((x) => x.id === id);
@@ -477,7 +508,7 @@ function tickChore(s: GameState, dt: number) {
   if (s.chore.id === null) return;
   const i = CHORES.findIndex((x) => x.id === s.chore.id);
   const c = CHORES[i];
-  s.chore.progress += dt;
+  s.chore.progress += dt * choreSpeed(s, i);
   while (s.chore.progress >= c.seconds) {
     s.chore.progress -= c.seconds;
     s.contribution += choreReward(s, i);

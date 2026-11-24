@@ -37,8 +37,8 @@ function allocate() {
 }
 
 function pickChore() {
-  const open = CHORES.filter((c) => c.unlockRealm <= s.realm);
-  const best = open[open.length - 1];
+  const open = CHORES.map((_, i) => i).filter((i) => CHORES[i].unlockRealm <= s.realm);
+  const best = CHORES[open.reduce((a, b) => (E.choreRate(s, b) > E.choreRate(s, a) ? b : a))];
   if (s.chore.id !== best.id) E.setChore(s, best.id);
 }
 

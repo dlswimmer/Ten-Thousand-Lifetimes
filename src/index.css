@@ -230,3 +230,6 @@ button { font: inherit; color: inherit; }
 .segmented button.on { background: var(--jade-dim); color: var(--text); }
 .orb.resting { box-shadow: none; filter: saturate(0.4); }
 .orb.resting .orb-swirl, .orb.resting .orb-dot-dark, .orb.resting .orb-dot-light { animation-play-state: paused; }
+.chore-need { display: block; }
+.chore-need.ahead b { color: var(--jade); }
+.chore-need.behind b { color: var(--crimson); }

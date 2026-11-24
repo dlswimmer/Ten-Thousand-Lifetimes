@@ -11,6 +11,7 @@ An idle/incremental cultivation game for mobile. Gather qi, break through realm 
 - You start as a mortal. An elder from the sect that best suits your spiritual root finds you and brings you in (the Fated Meeting Karma upgrade lets you choose)
 - Three sects (Azure Cloud Sect, Crimson Furnace Valley, Stoneheart Monastery), each with its own bonus and a library of six manuals
 - Sect chores earn contribution, which buys manuals from the Scripture Pavilion; higher manuals need a higher sect rank
+- Chores have soft stat requirements (vitality, speed, defense, attack or cultivation stage): below the requirement a chore runs slower (down to 0.4x), well above it up to 2x faster
 - Body cultivation: a second path (Copper Skin, Iron Bone, Jade Marrow, Golden Blood, Diamond Body) fed by vigor from training, physical chores and hunts. It raises physical stats and is capped by your qi realm
 - Stats (attack, defense, vitality, speed) grow with your realm and your equipped manuals' elements, and are compared with each beast on hunts
 - Qi cultivation with 9 minor stages per realm and 5 qi realms (Qi Sensing to Nascent Soul). The first life is short on progress; Karma makes later lives faster
