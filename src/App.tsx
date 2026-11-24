@@ -93,6 +93,8 @@ export default function App() {
     window.setTimeout(() => setFloaters((list) => list.filter((x) => x.id !== fid)), 900);
   };
 
+  const visibleTabs = TABS.filter((t) => s.unlocked.includes(t.id));
+  const current: Tab = s.unlocked.includes(tab) ? tab : 'cultivate';
   const span = E.lifespan(s);
   const agePct = Math.min(1, (s.age - 16) / Math.max(1, span - 16));
   const yearsLeft = Math.max(0, span - s.age);
@@ -120,41 +122,40 @@ export default function App() {
           <div className="bar thin"><div className="fill life-fill" style={{ width: `${agePct * 100}%` }} /></div>
         </div>
         <div className="purse">
-          <span className="chip"><span className="dot stone" />{fmt(s.stones)} stones {s.sect !== null && <span className="muted">+{fmt(E.stonesPerSec(s))}/s</span>}</span>
+          {s.sect !== null && <span className="chip"><span className="dot stone" />{fmt(s.stones)} stones <span className="muted">+{fmt(E.stonesPerSec(s))}/s</span></span>}
           {s.sect !== null && <span className="chip"><span className="dot contrib" />{fmt(s.contribution)} contribution</span>}
-          <span className="chip"><span className="dot insight" />{fmt(s.insight)} insight</span>
-          <span className="chip"><span className="dot karma" />{fmt(s.karma)} karma</span>
+          {s.insight > 0 && <span className="chip"><span className="dot insight" />{fmt(s.insight)} insight</span>}
+          {s.unlocked.includes('karma') && <span className="chip"><span className="dot karma" />{fmt(s.karma)} karma</span>}
         </div>
       </header>
 
       <main className="content">
-        {tab === 'cultivate' && (s.sect === null
+        {current === 'cultivate' && (s.sect === null
           ? <Encounter s={s} act={act} />
           : <Cultivate s={s} act={act} onCirculate={onCirculate} floaters={floaters} />)}
-        {tab !== 'cultivate' && tab !== 'karma' && s.sect === null && (
+        {current !== 'cultivate' && current !== 'karma' && s.sect === null && (
           <section className="empty">
             <h2 className="section-title">You are still a mortal</h2>
             <p className="muted">Only sect disciples are taught to cultivate. Someone is coming for you.</p>
             <button className="btn primary" onClick={() => setTab('cultivate')}>Return to the village</button>
           </section>
         )}
-        {tab === 'techniques' && s.sect !== null && <><Chores s={s} act={act} /><Techniques s={s} act={act} /></>}
-        {tab === 'hunt' && s.sect !== null && <Hunt s={s} act={act} />}
-        {tab === 'elixirs' && s.sect !== null && <Elixirs s={s} act={act} />}
-        {tab === 'karma' && <Karma s={s} act={act} onReincarnate={() => setConfirmReincarnate(true)} />}
+        {current === 'techniques' && s.sect !== null && <><Chores s={s} act={act} /><Techniques s={s} act={act} /></>}
+        {current === 'hunt' && s.sect !== null && <Hunt s={s} act={act} />}
+        {current === 'elixirs' && s.sect !== null && <Elixirs s={s} act={act} />}
+        {current === 'karma' && <Karma s={s} act={act} onReincarnate={() => setConfirmReincarnate(true)} />}
       </main>
 
-      <nav className="tabs">
-        {TABS.map((t) => {
-          const locked = t.id === 'hunt' && s.realm < 0;
-          return (
-            <button key={t.id} className={`tab ${tab === t.id ? 'on' : ''}`} disabled={locked} onClick={() => setTab(t.id)}>
-              <span className="tab-glyph">{t.glyph}</span>
+      {visibleTabs.length > 1 && (
+        <nav className="tabs" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+          {visibleTabs.map((t) => (
+            <button key={t.id} className={`tab ${current === t.id ? 'on' : ''}`} onClick={() => { setTab(t.id); act((x) => E.markSeen(x, t.id)); }}>
+              <span className="tab-glyph">{t.glyph}{s.unseen.includes(t.id) && <span className="new-dot" aria-label="new" />}</span>
               <span className="tab-label">{t.label}</span>
             </button>
-          );
-        })}
-      </nav>
+          ))}
+        </nav>
+      )}
 
       {offline && (
         <Modal onClose={() => setOffline(null)}>
@@ -268,7 +269,7 @@ function Cultivate({ s, act, onCirculate, floaters }: { s: E.GameState; act: Act
         </div>
       )}
 
-      <BodyPanel s={s} act={act} />
+      {(s.stage >= 2 || s.realm > 0 || s.body.level > 0) && <BodyPanel s={s} act={act} />}
 
       <Automation s={s} act={act} />
 

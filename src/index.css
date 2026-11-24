@@ -219,3 +219,6 @@ button { font: inherit; color: inherit; }
 .body-panel { display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
 .fill.body { background: linear-gradient(90deg, #8a4a2c, #d9895b); }
 .body-panel .bar-label { align-items: center; gap: 8px; }
+
+.tab-glyph { position: relative; }
+.new-dot { position: absolute; top: 0; right: -6px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }

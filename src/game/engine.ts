@@ -72,6 +72,8 @@ export interface GameState {
   autoBreakMin: number; // 0..1
   hunt: HuntState;
   body: { level: number; vigor: number };
+  unlocked: string[]; // tabs opened so far; they stay open in later lives
+  unseen: string[]; // newly opened tabs the player has not visited yet
   passing: PassingInfo | null; // set when a life ends, cleared when the next life starts
   bestRealm: number;
   log: LogEntry[];
@@ -96,6 +98,7 @@ export function newGame(now = Date.now()): GameState {
     autoAdvance: true, autoBreak: true, autoBreakMin: 0.6,
     hunt: { ground: null, beastHp: 0, playerHp: 0, recover: 0, respawn: 0, kills: 0 },
     body: { level: 0, vigor: 0 },
+    unlocked: ['cultivate'], unseen: [],
     passing: null,
     bestRealm: 0,
     log: [], logSeq: 0,
@@ -342,6 +345,32 @@ export function matchup(s: GameState, ground: number): Matchup {
 
 export const HUNT_REGEN = 0.02; // share of vitality recovered per second in a fight
 
+const UNLOCKS: { tab: string; when: (s: GameState) => boolean; text: string }[] = [
+  { tab: 'techniques', when: (s) => s.sect !== null, text: 'The Sect tab opens: chores, and the Scripture Pavilion where contribution buys manuals.' },
+  { tab: 'hunt', when: (s) => s.sect !== null && (s.realm > 0 || s.stage >= 3), text: 'The outer disciples invite you on a beast hunt. The Hunt tab opens.' },
+  { tab: 'elixirs', when: (s) => s.realm >= 1, text: 'As an Inner Disciple you may now visit the Elixir Pavilion.' },
+  {
+    tab: 'karma',
+    when: (s) => s.passing !== null || s.karmaEarned > 0 || s.age >= START_AGE + 0.8 * (lifespan(s) - START_AGE),
+    text: 'Your years grow short, and you begin to sense the cycle of rebirth. The Karma tab opens.',
+  },
+];
+
+/** Opens tabs as the player progresses, so the game reveals itself a piece at a time. */
+export function checkUnlocks(s: GameState) {
+  for (const u of UNLOCKS) {
+    if (!s.unlocked.includes(u.tab) && u.when(s)) {
+      s.unlocked.push(u.tab);
+      s.unseen.push(u.tab);
+      log(s, u.text, 'good');
+    }
+  }
+}
+
+export function markSeen(s: GameState, tab: string) {
+  s.unseen = s.unseen.filter((t) => t !== tab);
+}
+
 export function canReincarnate(s: GameState): boolean {
   return s.realm >= 1 && !s.passing;
 }
@@ -401,6 +430,7 @@ export function joinSect(s: GameState, sect: number) {
   s.equipped = [first];
   s.chore = { id: CHORES[0].id, progress: 0, done: 0 };
   log(s, `${SECTS[sect].elder} brings you to the ${SECTS[sect].name}. As a new Outer Disciple you receive ${TECHNIQUES[first].name}, a broom and a long list of chores.`, 'good');
+  checkUnlocks(s);
 }
 
 export function choreReward(s: GameState, i: number): number {
@@ -620,11 +650,13 @@ export function tick(s: GameState, dt: number, ageRate = 1) {
     attemptBreakthrough(s);
   }
 
+  checkUnlocks(s);
   s.age += (dt / SECONDS_PER_YEAR) * ageRate;
   s.playSeconds += dt;
   if (s.age >= lifespan(s)) {
     s.age = lifespan(s);
     endLife(s, false);
+    checkUnlocks(s);
   }
 }
 

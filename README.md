@@ -6,6 +6,7 @@ An idle/incremental cultivation game for mobile. Gather qi, break through realm 
 
 ## Prototype v0.1
 
+- Tabs open as you progress (Sect on joining, Hunt at stage 3, Elixirs at Qi Gathering); Karma and reincarnation stay hidden until 80% of your first lifespan
 - You start as a mortal. An elder from the sect that best suits your spiritual root finds you and brings you in (the Fated Meeting Karma upgrade lets you choose)
 - Three sects (Azure Cloud Sect, Crimson Furnace Valley, Stoneheart Monastery), each with its own bonus and a library of six manuals
 - Sect chores earn contribution, which buys manuals from the Scripture Pavilion; higher manuals need a higher sect rank
