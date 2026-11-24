@@ -14,7 +14,7 @@ export interface Realm {
 }
 
 export const REALMS: Realm[] = [
-  { name: 'Body Tempering', lifespan: 80, breakChance: 0.8, blurb: 'You harden flesh and bone so it can hold qi at all.' },
+  { name: 'Qi Sensing', lifespan: 80, breakChance: 0.8, blurb: 'You learn to feel the faint qi in the air and draw it in with every breath.' },
   { name: 'Qi Gathering', lifespan: 130, breakChance: 0.6, blurb: 'Qi pools in your dantian like rain in a cupped hand.' },
   { name: 'Foundation Establishment', lifespan: 220, breakChance: 0.45, blurb: 'Your dao foundation is laid. Pills and mortal herbs answer your call.' },
   { name: 'Golden Core', lifespan: 380, breakChance: 0.32, blurb: 'Qi condenses into a core that glows like a second sun.' },
@@ -137,7 +137,7 @@ export interface Chore {
   name: string;
   blurb: string;
   seconds: number;
-  contribution: number; // at Body Tempering stage 1; scales with your rank
+  contribution: number; // at Qi Sensing stage 1; scales with your rank
   unlockRealm: number;
 }
 
@@ -234,7 +234,7 @@ export const KARMA_NODES: KarmaNode[] = [
   { id: 'fated', name: 'Fated Root', blurb: (l) => `Better spiritual root odds (level ${l}/5)`, baseCost: 4, costGrowth: 2.5, maxLevel: 5 },
   { id: 'daoheart', name: 'Unshaken Dao Heart', blurb: (l) => `+${l * 6}% breakthrough chance (next +${(l + 1) * 6}%)`, baseCost: 5, costGrowth: 3, maxLevel: 5 },
   { id: 'thirdeye', name: 'Third Eye', blurb: (l) => `Insight from failures x${fmtMult(1 + 0.5 * l)} (next x${fmtMult(1 + 0.5 * (l + 1))})`, baseCost: 3, costGrowth: 2.5, maxLevel: 6 },
-  { id: 'autoadvance', name: 'Flowing Stages', blurb: () => 'Automation: advance minor stages on your own', baseCost: 6, costGrowth: 1, maxLevel: 1 },
+  { id: 'autoadvance', name: 'Flowing Stages', blurb: () => 'Automation: advance minor stages and temper the body on your own', baseCost: 6, costGrowth: 1, maxLevel: 1 },
   { id: 'autobreak', name: 'Heaven-Sensing Instinct', blurb: () => 'Automation: attempt breakthroughs when the odds are good', baseCost: 25, costGrowth: 1, maxLevel: 1, requires: 'autoadvance' },
   { id: 'fatedmeeting', name: 'Fated Meeting', blurb: () => 'Choose which sect\'s elder finds you in each new life', baseCost: 8, costGrowth: 1, maxLevel: 1 },
   { id: 'seclusion', name: 'Deep Seclusion', blurb: (l) => `Offline gains capped at ${8 + l * 4}h (next ${8 + (l + 1) * 4}h)`, baseCost: 4, costGrowth: 2.5, maxLevel: 6 },
@@ -272,10 +272,10 @@ export interface HuntGround {
 
 export const HUNT_GROUNDS: HuntGround[] = [
   { id: 'grove', name: 'Misty Bamboo Grove', beast: 'Iron-Bristle Boar', unlockRealm: 0, stats: { attack: 13, defense: 6, vitality: 90, speed: 10 }, stones: 18 },
-  { id: 'ravine', name: 'Whispering Ravine', beast: 'Ravine Shadow Lynx', unlockRealm: 1, stats: { attack: 160, defense: 71, vitality: 1060, speed: 30 }, stones: 108 },
-  { id: 'plateau', name: 'Ashen Plateau', beast: 'Cinder-Wing Hawk', unlockRealm: 2, stats: { attack: 2300, defense: 900, vitality: 1.5e4, speed: 60 }, stones: 540 },
-  { id: 'palace', name: 'Drowned Palace', beast: 'Pearl-Eyed Serpent', unlockRealm: 3, stats: { attack: 2.2e4, defense: 8500, vitality: 1.4e5, speed: 85 }, stones: 2700 },
-  { id: 'peak', name: 'Thunderhead Peak', beast: 'Storm-Maned Qilin', unlockRealm: 4, stats: { attack: 2e5, defense: 7.5e4, vitality: 1.3e6, speed: 110 }, stones: 13500 },
+  { id: 'ravine', name: 'Whispering Ravine', beast: 'Ravine Shadow Lynx', unlockRealm: 1, stats: { attack: 208, defense: 92.3, vitality: 1.38e03, speed: 30 }, stones: 108 },
+  { id: 'plateau', name: 'Ashen Plateau', beast: 'Cinder-Wing Hawk', unlockRealm: 2, stats: { attack: 3.89e03, defense: 1.52e03, vitality: 2.53e04, speed: 60 }, stones: 540 },
+  { id: 'palace', name: 'Drowned Palace', beast: 'Pearl-Eyed Serpent', unlockRealm: 3, stats: { attack: 4.83e04, defense: 1.87e04, vitality: 3.07e05, speed: 85 }, stones: 2700 },
+  { id: 'peak', name: 'Thunderhead Peak', beast: 'Storm-Maned Qilin', unlockRealm: 4, stats: { attack: 5.71e05, defense: 2.14e05, vitality: 3.71e06, speed: 110 }, stones: 13500 },
 ];
 
 // Player stats: a base that grows with every stage and realm, boosted by equipped manuals by element.
@@ -293,3 +293,18 @@ export const STAT_NAMES: Record<keyof Stats, string> = { attack: 'Attack', defen
 export const HUNT_RECOVER_S = 8;
 export const HUNT_RESPAWN_S = 2; // a new beast appears this long after a kill
 export const STRIKE_MULT = 2;
+
+// Body cultivation: a second path that tempers flesh and bone instead of gathering qi.
+export const BODY_REALMS = ['Copper Skin', 'Iron Bone', 'Jade Marrow', 'Golden Blood', 'Diamond Body'];
+export const BODY_LEVELS_PER_REALM = 9;
+export const BODY_COST_BASE = 15;
+export const BODY_COST_GROWTH = 1.7;
+export const VIGOR_BASE = 0.25; // vigor per second at the very start
+export const VIGOR_STAGE_GROWTH = 1.5; // vigor rate grows with your qi cultivation stage
+export const VIGOR_PER_KILL_SECONDS = 3; // a kill is worth this many seconds of vigor
+export const VIGOR_TRAIN_SECONDS = 0.5; // one tap of Train
+export const PHYSICAL_CHORE_VIGOR = 2; // physical chores double vigor while you do them
+export const PHYSICAL_CHORES = ['water', 'gate', 'caravan'];
+export const BODY_STAT_GROWTH = { attack: 1.05, defense: 1.06, vitality: 1.06, speed: 1.02 };
+export const BODY_YEARS_PER_LEVEL = 1;
+export const SECT_BODY_AFFINITY = [1, 1.5, 1.5]; // Crimson Furnace and Stoneheart favour the body path

@@ -214,3 +214,8 @@ button { font: inherit; color: inherit; }
 .chore-row.on { border-color: var(--jade-dim); }
 .chore-row.locked { opacity: 0.5; }
 .chore-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* body cultivation */
+.body-panel { display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+.fill.body { background: linear-gradient(90deg, #8a4a2c, #d9895b); }
+.body-panel .bar-label { align-items: center; gap: 8px; }

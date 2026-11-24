@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as E from './game/engine';
 import {
-  ELEMENT_GLYPH, FINAL_REALM, HUNT_GROUNDS, SECTS, CHORES, STAT_NAMES, type Stats, ELEMENT_STATS, KARMA_NODES, LONGEVITY_PILL_YEARS, MAX_BREAK_PILLS,
+  ELEMENT_GLYPH, FINAL_REALM, HUNT_GROUNDS, SECTS, CHORES, PHYSICAL_CHORES, STAT_NAMES, type Stats, ELEMENT_STATS, KARMA_NODES, LONGEVITY_PILL_YEARS, MAX_BREAK_PILLS,
   MAX_LONGEVITY_PILLS, PILLS, REALMS, ROOT_GRADES, STAGES_PER_REALM, TECHNIQUES, TECH_MILESTONES,
   clarityPillCost, longevityPillCost,
 } from './game/data';
@@ -173,7 +173,7 @@ export default function App() {
       {confirmReincarnate && !s.passing && (
         <Modal onClose={() => setConfirmReincarnate(false)}>
           <h2>Enter the cycle of rebirth?</h2>
-          <p>You will be reborn at Body Tempering with <b>{E.karmaForLife(s)} Karma</b>. That is exactly what you would receive if this life ran its natural course, so there is no penalty for waiting or for going now.</p>
+          <p>You will be reborn as a mortal with <b>{E.karmaForLife(s)} Karma</b>. That is exactly what you would receive if this life ran its natural course, so there is no penalty for waiting or for going now.</p>
           <p className="muted">Kept: Karma, Karma upgrades, {Math.round(100 * (0.1 + 0.15 * E.k(s, 'memories')))}% of manual mastery. Reset: realm, sect membership, manuals, qi, stones, contribution, pills.</p>
           <div className="row">
             <button className="btn" onClick={() => setConfirmReincarnate(false)}>Stay</button>
@@ -268,6 +268,8 @@ function Cultivate({ s, act, onCirculate, floaters }: { s: E.GameState; act: Act
         </div>
       )}
 
+      <BodyPanel s={s} act={act} />
+
       <Automation s={s} act={act} />
 
       <StatStrip stats={E.playerStats(s)} />
@@ -278,6 +280,32 @@ function Cultivate({ s, act, onCirculate, floaters }: { s: E.GameState; act: Act
         {s.log.slice(0, 8).map((l) => <div key={l.id} className={`log-line ${l.kind}`}>{l.text}</div>)}
       </div>
     </section>
+  );
+}
+
+function BodyPanel({ s, act }: { s: E.GameState; act: ActFn }) {
+  const cost = E.bodyCost(s);
+  const capped = s.body.level >= E.bodyCap(s);
+  const pct = capped ? 1 : Math.min(1, s.body.vigor / cost);
+  const rate = E.vigorPerSec(s);
+  const physical = s.chore.id !== null && PHYSICAL_CHORES.includes(s.chore.id);
+  return (
+    <div className="body-panel">
+      <div className="card-head">
+        <div className="card-title">
+          <b>Body cultivation · {E.bodyRealmName(s.body.level)}</b>
+          <span className="small muted">Tempering raises attack, defense and vitality, and adds a year of life per level.</span>
+        </div>
+        <button className="btn small" onClick={() => act(E.trainBody)}>Train</button>
+      </div>
+      <div className="bar"><div className="fill body" style={{ width: `${pct * 100}%` }} /></div>
+      <div className="bar-label">
+        <span>{fmt(s.body.vigor)} / {fmt(cost)} vigor · +{fmt(rate)}/s{physical ? ' (physical chore x2)' : ''}</span>
+        {capped
+          ? <span className="muted">Your qi realm limits the body here</span>
+          : <button className="btn small gold" disabled={!E.canTemper(s)} onClick={() => act(E.temperBody)}>Temper</button>}
+      </div>
+    </div>
   );
 }
 
@@ -369,7 +397,7 @@ function Chores({ s, act }: { s: E.GameState; act: ActFn }) {
             <div key={c.id} className={`chore-row ${on ? 'on' : ''} ${locked ? 'locked' : ''}`}>
               <div className="chore-info">
                 <b className="small">{c.name}</b>
-                <span className="small muted">{locked ? `Requires rank: ${E.sectRank({ ...s, realm: c.unlockRealm })}` : `${fmtTime(c.seconds)} · ${fmt(E.choreReward(s, i) / c.seconds * 60)} contribution per minute`}</span>
+                <span className="small muted">{locked ? `Requires rank: ${E.sectRank({ ...s, realm: c.unlockRealm })}` : `${fmtTime(c.seconds)} · ${fmt(E.choreReward(s, i) / c.seconds * 60)} contribution per minute${PHYSICAL_CHORES.includes(c.id) ? ' · trains the body' : ''}`}</span>
               </div>
               {!locked && !on && <button className="btn small" onClick={() => act((x) => E.setChore(x, c.id))}>Do this</button>}
               {on && <span className="small" style={{ color: 'var(--jade)' }}>Working</span>}

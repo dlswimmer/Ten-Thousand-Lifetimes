@@ -63,11 +63,12 @@ while (t < end) {
   E.tick(s, 1);
   for (let tap = 0; tap < 0; tap++) E.circulate(s);
   while (E.canAdvance(s) && !E.atBottleneck(s)) E.advance(s);
+  while (E.canTemper(s)) E.temperBody(s);
   if (E.atBottleneck(s) && E.canAdvance(s) && !E.sealedAtTop(s) && E.breakChance(s) >= 0.5) E.attemptBreakthrough(s);
   if (t % 5 === 0) { shop(); pickHunt(); pickChore(); }
   mark(`${REALMS[s.realm].name}`);
   const g = E.globalStage(s);
-  if (g > lastG) { lastG = g; lastProgress = t; if (process.env.STAGES && s.lives <= Number(process.env.STAGES)) console.log(`   ${fmt(t)} L${s.lives} ${REALMS[s.realm].name} ${s.stage} qps=${E.qps(s).toExponential(2)} req=${E.stageReq(s).toExponential(2)} stones/s=${E.stonesPerSec(s).toExponential(2)} hunt=${s.hunt.ground} techs=${s.techs.map(x=>x.lvl).join(',')}`); }
+  if (g > lastG) { lastG = g; lastProgress = t; if (process.env.STAGES && s.lives <= Number(process.env.STAGES)) console.log(`   ${fmt(t)} L${s.lives} ${REALMS[s.realm].name} ${s.stage} qps=${E.qps(s).toExponential(2)} req=${E.stageReq(s).toExponential(2)} stones/s=${E.stonesPerSec(s).toExponential(2)} hunt=${s.hunt.ground} body=${s.body.level} techs=${s.techs.map(x=>x.lvl).join(',')}`); }
   // voluntary reincarnation when stuck for 4 minutes and karma would be meaningful
   if (!s.passing && E.canReincarnate(s) && t - lastProgress > 240 && E.karmaForLife(s) >= Math.max(3, s.karmaEarned * 0.5)) {
     E.endLife(s, true);

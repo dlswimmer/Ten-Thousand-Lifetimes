@@ -8,6 +8,9 @@ import {
   TAP_SECONDS, TECHNIQUES, TECH_COST_GROWTH, TECH_MILESTONES, clarityPillCost, headStartStones,
   longevityPillCost, memoryKeep, slotsForRealm, SECTS, starterManual, HUNT_CONTRIB_SHARE, CHORES, CHORE_STAGE_MULT, CHORE_REALM_MULT, CHORE_TAP_SECONDS,
   ELEMENT_STATS, STAT_REALM_MULT, STAT_STAGE_GROWTH, Stats, SECT_RANKS,
+  BODY_REALMS, BODY_LEVELS_PER_REALM, BODY_COST_BASE, BODY_COST_GROWTH, VIGOR_BASE, VIGOR_STAGE_GROWTH,
+  VIGOR_PER_KILL_SECONDS, VIGOR_TRAIN_SECONDS, PHYSICAL_CHORE_VIGOR, PHYSICAL_CHORES, BODY_STAT_GROWTH,
+  BODY_YEARS_PER_LEVEL, SECT_BODY_AFFINITY,
 } from './data';
 
 export type LogKind = 'info' | 'good' | 'bad' | 'karma';
@@ -41,7 +44,7 @@ export interface PassingInfo {
 }
 
 export interface GameState {
-  version: 3;
+  version: 4;
   sect: number | null; // null until an elder brings you to a sect
   fatedSect: number; // the sect whose elder finds you this life
   contribution: number;
@@ -68,6 +71,7 @@ export interface GameState {
   autoBreak: boolean;
   autoBreakMin: number; // 0..1
   hunt: HuntState;
+  body: { level: number; vigor: number };
   passing: PassingInfo | null; // set when a life ends, cleared when the next life starts
   bestRealm: number;
   log: LogEntry[];
@@ -80,7 +84,7 @@ export interface GameState {
 
 export function newGame(now = Date.now()): GameState {
   const s: GameState = {
-    version: 3,
+    version: 4,
     sect: null, fatedSect: 0, contribution: 0, chore: { id: null, progress: 0, done: 0 },
     qi: 0, realm: 0, stage: 1, stones: 0, insight: 0, age: START_AGE, lifeQi: 0,
     techs: TECHNIQUES.map(() => ({ owned: false, lvl: 0, masteryXp: 0 })),
@@ -91,6 +95,7 @@ export function newGame(now = Date.now()): GameState {
     lives: 1,
     autoAdvance: true, autoBreak: true, autoBreakMin: 0.6,
     hunt: { ground: null, beastHp: 0, playerHp: 0, recover: 0, respawn: 0, kills: 0 },
+    body: { level: 0, vigor: 0 },
     passing: null,
     bestRealm: 0,
     log: [], logSeq: 0,
@@ -152,7 +157,7 @@ export function stageReq(s: GameState): number {
 }
 
 export function lifespan(s: GameState): number {
-  return REALMS[s.realm].lifespan + 20 * k(s, 'longevity') + s.bonusYears + (s.sect === null ? 0 : SECTS[s.sect].bonusYears);
+  return REALMS[s.realm].lifespan + 20 * k(s, 'longevity') + s.bonusYears + (s.sect === null ? 0 : SECTS[s.sect].bonusYears) + BODY_YEARS_PER_LEVEL * s.body.level;
 }
 
 export function masteryLevel(xp: number): number {
@@ -241,6 +246,47 @@ export function offlineCap(s: GameState): number {
   return OFFLINE_BASE_CAP_S + k(s, 'seclusion') * 4 * 3600;
 }
 
+// ---------- body cultivation ----------
+
+export function bodyRealmName(level: number): string {
+  if (level === 0) return 'Untempered';
+  const r = Math.min(BODY_REALMS.length - 1, Math.floor((level - 1) / BODY_LEVELS_PER_REALM));
+  const step = level - r * BODY_LEVELS_PER_REALM;
+  return `${BODY_REALMS[r]} ${step}`;
+}
+
+/** The body can only be tempered as far as your qi realm can support. */
+export function bodyCap(s: GameState): number {
+  return Math.min(BODY_REALMS.length, s.realm + 1) * BODY_LEVELS_PER_REALM;
+}
+
+export function bodyCost(s: GameState): number {
+  return BODY_COST_BASE * Math.pow(BODY_COST_GROWTH, s.body.level);
+}
+
+export function vigorPerSec(s: GameState): number {
+  if (s.sect === null) return 0;
+  const physical = s.chore.id !== null && PHYSICAL_CHORES.includes(s.chore.id) ? PHYSICAL_CHORE_VIGOR : 1;
+  return VIGOR_BASE * Math.pow(VIGOR_STAGE_GROWTH, globalStage(s)) * physical * SECT_BODY_AFFINITY[s.sect];
+}
+
+export function canTemper(s: GameState): boolean {
+  return s.sect !== null && !s.passing && s.body.level < bodyCap(s) && s.body.vigor >= bodyCost(s);
+}
+
+export function temperBody(s: GameState): boolean {
+  if (!canTemper(s)) return false;
+  s.body.vigor -= bodyCost(s);
+  s.body.level += 1;
+  if (s.body.level % BODY_LEVELS_PER_REALM === 1) log(s, `Your body reaches ${BODY_REALMS[Math.floor((s.body.level - 1) / BODY_LEVELS_PER_REALM)]}.`, 'good');
+  return true;
+}
+
+export function trainBody(s: GameState) {
+  if (s.sect === null || s.passing) return;
+  s.body.vigor += vigorPerSec(s) * VIGOR_TRAIN_SECONDS;
+}
+
 export function sectRank(s: GameState): string {
   return SECT_RANKS[Math.min(SECT_RANKS.length - 1, s.realm)];
 }
@@ -269,10 +315,10 @@ export function playerStats(s: GameState): Stats {
   const b = manualStatBonus(s);
   const sect = s.sect === null ? null : SECTS[s.sect];
   return {
-    attack: p * (1 + b.attack) * (sect?.huntAtkMult ?? 1),
-    defense: 0.6 * p * (1 + b.defense),
-    vitality: 10 * p * (1 + b.vitality),
-    speed: (10 + 2 * g) * (1 + b.speed),
+    attack: p * (1 + b.attack) * (sect?.huntAtkMult ?? 1) * Math.pow(BODY_STAT_GROWTH.attack, s.body.level),
+    defense: 0.6 * p * (1 + b.defense) * Math.pow(BODY_STAT_GROWTH.defense, s.body.level),
+    vitality: 10 * p * (1 + b.vitality) * Math.pow(BODY_STAT_GROWTH.vitality, s.body.level),
+    speed: (10 + 2 * g) * (1 + b.speed) * Math.pow(BODY_STAT_GROWTH.speed, s.body.level),
   };
 }
 
@@ -484,6 +530,7 @@ export function beginNextLife(s: GameState) {
   s.stones = headStartStones(k(s, 'headstart'));
   s.clarityPills = 0; s.longevityUsed = 0; s.bonusYears = 0; s.heartDemon = 0;
   s.hunt = { ground: null, beastHp: 0, playerHp: 0, recover: 0, respawn: 0, kills: 0 };
+  s.body = { level: 0, vigor: 0 };
   s.lives += 1;
   s.root = rollRoot(s);
   s.fatedSect = fatedSectFor(s);
@@ -515,6 +562,7 @@ function resolveKill(s: GameState) {
   const reward = g.stones * Math.pow(1.5, k(s, 'vein'));
   s.stones += reward;
   s.contribution += reward * HUNT_CONTRIB_SHARE;
+  s.body.vigor += vigorPerSec(s) * VIGOR_PER_KILL_SECONDS;
   h.kills += 1;
   h.beastHp = g.stats.vitality;
   h.respawn = HUNT_RESPAWN_S;
@@ -557,6 +605,7 @@ export function tick(s: GameState, dt: number, ageRate = 1) {
   s.lifeQi += gain;
   s.stones += stonesPerSec(s) * dt;
   tickChore(s, dt);
+  s.body.vigor += vigorPerSec(s) * dt;
   for (const i of s.equipped) s.techs[i].masteryXp += dt;
   if (s.heartDemon > 0) s.heartDemon = Math.max(0, s.heartDemon - dt);
   tickHunt(s, dt);
@@ -564,6 +613,7 @@ export function tick(s: GameState, dt: number, ageRate = 1) {
   if (k(s, 'autoadvance') && s.autoAdvance) {
     let guard = 0;
     while (canAdvance(s) && !atBottleneck(s) && guard++ < 20) advance(s);
+    while (canTemper(s) && guard++ < 40) temperBody(s);
   }
   if (k(s, 'autobreak') && s.autoBreak && atBottleneck(s) && canAdvance(s) && !sealedAtTop(s)
       && breakChance(s) >= s.autoBreakMin) {
@@ -611,7 +661,7 @@ export function applyOffline(s: GameState, now = Date.now()): OfflineReport | nu
   };
 }
 
-export const SAVE_KEY = 'ten-thousand-lifetimes-save-v3';
+export const SAVE_KEY = 'ten-thousand-lifetimes-save-v4';
 
 export function serialize(s: GameState): string {
   return btoa(unescape(encodeURIComponent(JSON.stringify(s))));
@@ -620,7 +670,7 @@ export function serialize(s: GameState): string {
 export function deserialize(text: string): GameState | null {
   try {
     const obj = JSON.parse(decodeURIComponent(escape(atob(text.trim()))));
-    if (!obj || obj.version !== 3) return null;
+    if (!obj || obj.version !== 4) return null;
     const fresh = newGame();
     const merged: GameState = { ...fresh, ...obj };
     // tolerate saves from builds with fewer techniques
