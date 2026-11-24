@@ -456,6 +456,7 @@ function Karma({ s, act, onReincarnate }: { s: E.GameState; act: ActFn; onReinca
 function Menu({ s, onClose, onReplace }: { s: E.GameState; onClose: () => void; onReplace: (st: E.GameState) => void }) {
   const [text, setText] = useState('');
   const [msg, setMsg] = useState('');
+  const [armReset, setArmReset] = useState(false);
   const grade = ROOT_GRADES[s.root.grade];
   return (
     <Modal onClose={onClose}>
@@ -466,7 +467,7 @@ function Menu({ s, onClose, onReplace }: { s: E.GameState; onClose: () => void; 
       <div className="row">
         <button className="btn small" onClick={() => { const t = E.serialize(s); setText(t); navigator.clipboard?.writeText(t).then(() => setMsg('Copied to clipboard.'), () => setMsg('Select and copy the text below.')); }}>Export</button>
         <button className="btn small" onClick={() => { const next = E.deserialize(text); if (next) onReplace(next); else setMsg('That save text could not be read.'); }}>Import</button>
-        <button className="btn small danger" onClick={() => { if (window.confirm('Erase all progress and start over?')) onReplace(E.newGame()); }}>Hard reset</button>
+        <button className="btn small danger" onClick={() => { if (armReset) onReplace(E.newGame()); else { setArmReset(true); setMsg('Tap "Erase everything" to confirm. This cannot be undone.'); } }}>{armReset ? 'Erase everything' : 'Hard reset'}</button>
       </div>
       <textarea className="save-text" value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste a save here to import" rows={3} />
       {msg && <p className="small muted">{msg}</p>}
