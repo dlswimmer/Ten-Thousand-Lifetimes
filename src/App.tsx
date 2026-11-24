@@ -410,11 +410,12 @@ function stageLabel(g: number): string {
 function ChoreNeedLine({ s, i }: { s: E.GameState; i: number }) {
   const n = E.choreNeed(s, i);
   if (!n) return <span className="small muted chore-need">No requirement · normal speed</span>;
-  const cls = n.speed >= 1 ? 'ahead' : 'behind';
+  const verb = n.hard ? 'Requires' : 'Needs';
   const label = n.stat === 'cultivation'
-    ? `Needs ${stageLabel(n.need)} · you are ${stageLabel(n.have)}`
-    : `Needs ${fmt(n.need)} ${STAT_NAMES[n.stat as keyof Stats]} · you have ${fmt(n.have)}`;
-  return <span className={`small chore-need ${cls}`}>{label} · <b>{n.speed.toFixed(2)}x speed</b></span>;
+    ? `${verb} ${stageLabel(n.need)} · you are ${stageLabel(n.have)}`
+    : `${verb} ${fmt(n.need)} ${STAT_NAMES[n.stat as keyof Stats]} · you have ${fmt(n.have)}`;
+  if (n.hard && !n.met) return <span className="small chore-need behind">{label} · <b>locked</b></span>;
+  return <span className={`small chore-need ${n.speed >= 1 ? 'ahead' : 'behind'}`}>{label} · <b>{n.speed.toFixed(2)}x speed</b></span>;
 }
 
 function Chores({ s, act }: { s: E.GameState; act: ActFn }) {
@@ -422,7 +423,7 @@ function Chores({ s, act }: { s: E.GameState; act: ActFn }) {
   return (
     <section>
       <h2 className="section-title">Chores</h2>
-      <p className="muted small">Every disciple works for the sect. Chores repeat on their own, even in seclusion, and pay sect contribution. Tap Work hard to finish faster. Longer chores pay better. Most chores lean on one stat: below it they go slowly, and well above it they go up to twice as fast.</p>
+      <p className="muted small">Every disciple works for the sect. Chores repeat on their own, even in seclusion, and pay sect contribution. Tap Work hard to finish faster. Longer chores pay better. Most chores lean on one stat. Basic chores go slowly below it; better chores cannot be taken until you meet it. Well above it, any chore goes up to twice as fast.</p>
       {current >= 0 && (
         <div className="chore-now">
           <div className="card-head">
@@ -442,13 +443,14 @@ function Chores({ s, act }: { s: E.GameState; act: ActFn }) {
       <div className="chore-list">
         {CHORES.map((c, i) => {
           if (c.unlockRealm > s.realm + 1) return null;
-          const locked = c.unlockRealm > s.realm;
+          const rankLocked = c.unlockRealm > s.realm;
+          const locked = !E.canDoChore(s, i);
           const on = i === current;
           return (
             <div key={c.id} className={`chore-row ${on ? 'on' : ''} ${locked ? 'locked' : ''}`}>
               <div className="chore-info">
                 <b className="small">{c.name}</b>
-                <span className="small muted">{locked ? `Requires rank: ${E.sectRank({ ...s, realm: c.unlockRealm })}` : `${fmtTime(c.seconds / E.choreSpeed(s, i))} · ${fmt(E.choreRate(s, i) * 60)} contribution per minute${PHYSICAL_CHORES.includes(c.id) ? ' · trains the body' : ''}`}</span>
+                <span className="small muted">{rankLocked ? `Requires rank: ${E.sectRank({ ...s, realm: c.unlockRealm })}` : locked ? `${fmtTime(c.seconds)} once you meet the requirement` : `${fmtTime(c.seconds / E.choreSpeed(s, i))} · ${fmt(E.choreRate(s, i) * 60)} contribution per minute${PHYSICAL_CHORES.includes(c.id) ? ' · trains the body' : ''}`}</span>
                 <ChoreNeedLine s={s} i={i} />
               </div>
               {!locked && !on && <button className="btn small" onClick={() => act((x) => E.setChore(x, c.id))}>Do this</button>}

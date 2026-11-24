@@ -142,6 +142,8 @@ export interface Chore {
   /** Soft requirement: the stat this chore leans on ('cultivation' = your stage), and the overall stage whose base stats meet it. */
   stat?: ChoreStat;
   needStage?: number;
+  /** Hard requirement: you cannot take this chore until you meet its stat; once met it runs at 1x to 2x. */
+  hard?: boolean;
 }
 
 export type ChoreStat = 'attack' | 'defense' | 'vitality' | 'speed' | 'cultivation';
@@ -150,10 +152,10 @@ export const CHORES: Chore[] = [
   { id: 'sweep', name: 'Sweep the courtyard', blurb: 'Ten thousand steps of stone, and every one has leaves on it.', seconds: 10, contribution: 3, unlockRealm: 0 },
   { id: 'water', name: 'Carry water up the mountain', blurb: 'Two buckets, a yoke and nine hundred stairs.', seconds: 25, contribution: 9, unlockRealm: 0, stat: 'vitality', needStage: 2 },
   { id: 'herbs', name: 'Tend the spirit herb garden', blurb: 'Pull weeds without bruising a single leaf of ginseng.', seconds: 60, contribution: 25, unlockRealm: 0, stat: 'speed', needStage: 4 },
-  { id: 'gate', name: 'Guard the mountain gate', blurb: 'Stand watch, turn away beggars, welcome the sect\'s guests.', seconds: 120, contribution: 60, unlockRealm: 1, stat: 'defense', needStage: 11 },
-  { id: 'scriptures', name: 'Copy scriptures in the pavilion', blurb: 'Brush every stroke exactly. The elders check.', seconds: 300, contribution: 180, unlockRealm: 1, stat: 'cultivation', needStage: 13 },
-  { id: 'caravan', name: 'Escort a sect caravan', blurb: 'Guard spirit stones on the road to the market town.', seconds: 600, contribution: 420, unlockRealm: 2, stat: 'attack', needStage: 21 },
-  { id: 'instruct', name: 'Instruct outer disciples', blurb: 'Teach the newest disciples the breathing you once struggled with.', seconds: 900, contribution: 720, unlockRealm: 3, stat: 'cultivation', needStage: 30 },
+  { id: 'gate', name: 'Guard the mountain gate', blurb: 'Stand watch, turn away beggars, welcome the sect\'s guests.', seconds: 120, contribution: 60, unlockRealm: 1, stat: 'defense', needStage: 11, hard: true },
+  { id: 'scriptures', name: 'Copy scriptures in the pavilion', blurb: 'Brush every stroke exactly. The elders check.', seconds: 300, contribution: 180, unlockRealm: 1, stat: 'cultivation', needStage: 13, hard: true },
+  { id: 'caravan', name: 'Escort a sect caravan', blurb: 'Guard spirit stones on the road to the market town.', seconds: 600, contribution: 420, unlockRealm: 2, stat: 'attack', needStage: 21, hard: true },
+  { id: 'instruct', name: 'Instruct outer disciples', blurb: 'Teach the newest disciples the breathing you once struggled with.', seconds: 900, contribution: 720, unlockRealm: 3, stat: 'cultivation', needStage: 30, hard: true },
 ];
 
 export const CHORE_STAGE_MULT = 1.12;

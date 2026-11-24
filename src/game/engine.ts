@@ -466,24 +466,33 @@ export function choreReward(s: GameState, i: number): number {
   return CHORES[i].contribution * Math.pow(CHORE_STAGE_MULT, globalStage(s)) * Math.pow(CHORE_REALM_MULT, s.realm);
 }
 
-export interface ChoreNeed { stat: string; need: number; have: number; speed: number }
+export interface ChoreNeed { stat: string; need: number; have: number; met: boolean; hard: boolean; speed: number }
 
-/** How fast a chore goes for you: slower below its soft requirement, up to twice as fast above it. */
+/** How fast a chore goes for you. Basic chores slow down below their requirement; better chores cannot be taken until it is met. Either way, well above it they run up to twice as fast. */
 export function choreNeed(s: GameState, i: number): ChoreNeed | null {
   const c = CHORES[i];
   if (!c.stat || c.needStage === undefined) return null;
-  const clamp = (x: number) => Math.min(CHORE_SPEED_MAX, Math.max(CHORE_SPEED_MIN, x));
+  const hard = !!c.hard;
+  const clamp = (x: number) => Math.min(CHORE_SPEED_MAX, Math.max(hard ? 1 : CHORE_SPEED_MIN, x));
   if (c.stat === 'cultivation') {
     const have = globalStage(s);
-    return { stat: c.stat, need: c.needStage, have, speed: clamp(Math.pow(CHORE_STAGE_SPEED, have - c.needStage)) };
+    const met = have >= c.needStage;
+    return { stat: c.stat, need: c.needStage, have, met, hard, speed: clamp(Math.pow(CHORE_STAGE_SPEED, have - c.needStage)) };
   }
   const need = baseStatsAt(c.needStage)[c.stat];
   const have = playerStats(s)[c.stat];
-  return { stat: c.stat, need, have, speed: clamp(Math.pow(have / need, CHORE_STAT_EXP)) };
+  return { stat: c.stat, need, have, met: have >= need, hard, speed: clamp(Math.pow(have / need, CHORE_STAT_EXP)) };
 }
 
 export function choreSpeed(s: GameState, i: number): number {
   return choreNeed(s, i)?.speed ?? 1;
+}
+
+/** Rank and any hard stat requirement are both met. */
+export function canDoChore(s: GameState, i: number): boolean {
+  if (CHORES[i].unlockRealm > s.realm) return false;
+  const n = choreNeed(s, i);
+  return !n || !n.hard || n.met;
 }
 
 /** Contribution per second from doing chore i continuously. */
@@ -494,7 +503,7 @@ export function choreRate(s: GameState, i: number): number {
 export function setChore(s: GameState, id: string | null) {
   if (s.sect === null) return;
   const c = CHORES.find((x) => x.id === id);
-  if (id !== null && (!c || c.unlockRealm > s.realm)) return;
+  if (id !== null && (!c || !canDoChore(s, CHORES.indexOf(c)))) return;
   s.chore = { id, progress: 0, done: s.chore.done };
   if (id !== null) s.activity = 'chores';
 }
