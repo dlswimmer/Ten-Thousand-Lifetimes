@@ -50,24 +50,111 @@ export const ROOT_GRADES: RootGrade[] = [
 
 export const ELEMENT_MATCH_MULT = 1.6;
 
+export interface Sect {
+  name: string;
+  elder: string;
+  greeting: string;
+  motto: string;
+  bonus: string;
+  qiMult: number;
+  huntAtkMult: number;
+  elixirCostMult: number;
+  bonusYears: number;
+  breakBonus: number;
+}
+
+// Sects recruit at the village fair each life. Each keeps its own library of manuals.
+export const SECTS: Sect[] = [
+  { name: 'Azure Cloud Sect', elder: 'Elder Lan Qiuyu', greeting: 'A woman in grey-blue robes steps down from a drifting cloud. "Your qi moves like water finding its level. Come. The Azure Cloud Sect has room for one more."', motto: 'Like clouds, qi gathers where it is not forced.', bonus: 'Qi gain +30%', qiMult: 1.3, huntAtkMult: 1, elixirCostMult: 1, bonusYears: 0, breakBonus: 0 },
+  { name: 'Crimson Furnace Valley', elder: 'Elder Huo Zhen', greeting: 'A broad man smelling of charcoal grips your wrist and feels your pulse. "Hot blood, stubborn bones. You will do. Crimson Furnace Valley, boy or girl, we leave at dawn."', motto: 'Temper the body in fire and the will in smoke.', bonus: 'Hunt attack +20%, elixirs 30% cheaper', qiMult: 1, huntAtkMult: 1.2, elixirCostMult: 0.7, bonusYears: 0, breakBonus: 0 },
+  { name: 'Stoneheart Monastery', elder: 'Abbot Shi Mo', greeting: 'An old monk who has sat by the village well for three days finally opens his eyes. "You have a patient root. The mountain is a long walk. Shall we begin?"', motto: 'The mountain does not hurry, and outlives everything.', bonus: '+30 years of life, +5% breakthrough chance', qiMult: 1, huntAtkMult: 1, elixirCostMult: 1, bonusYears: 30, breakBonus: 0.05 },
+];
+
+export const SECT_RANKS = ['Outer Disciple', 'Inner Disciple', 'Core Disciple', 'True Disciple', 'Elder'];
+
 export interface Technique {
   id: string;
   name: string;
+  sect: number; // which sect's library holds this manual
+  tier: number; // 0 is the starter manual every new disciple receives
   element: Element;
   baseQps: number; // qi per second per level
-  baseCost: number; // spirit stones for level 1
-  unlockRealm: number;
+  baseCost: number; // spirit stones to train level 1
+  manualCost: number; // sect contribution to be granted the manual
+  unlockRealm: number; // also the sect rank required
   blurb: string;
 }
 
-export const TECHNIQUES: Technique[] = [
-  { id: 'ninebreaths', name: 'Nine Breaths Sitting', element: 'Earth', baseQps: 1, baseCost: 8, unlockRealm: 0, blurb: 'A village elder\'s breathing drill. Humble, steady.' },
-  { id: 'emberheart', name: 'Ember Heart Sutra', element: 'Fire', baseQps: 9, baseCost: 120, unlockRealm: 0, blurb: 'Fans a small flame below the navel.' },
-  { id: 'willowroot', name: 'Willow Root Breathing', element: 'Wood', baseQps: 90, baseCost: 3000, unlockRealm: 1, blurb: 'Draw qi up from the earth like sap.' },
-  { id: 'stilllake', name: 'Still Lake Mind Art', element: 'Water', baseQps: 1100, baseCost: 1.2e5, unlockRealm: 2, blurb: 'A mind without ripples gathers more.' },
-  { id: 'ironspine', name: 'Iron Spine Scripture', element: 'Metal', baseQps: 15000, baseCost: 6e6, unlockRealm: 3, blurb: 'Forge the spine into a channel of steel.' },
-  { id: 'thousandrivers', name: 'Thousand Rivers Return', element: 'Water', baseQps: 2.2e5, baseCost: 4e8, unlockRealm: 4, blurb: 'Every river runs to the sea. So does every breath of qi.' },
+// Every sect library has the same power ladder, so no sect is a trap; names and elements differ.
+const TIERS = [
+  { baseQps: 1, baseCost: 8, manualCost: 0, unlockRealm: 0 },
+  { baseQps: 9, baseCost: 120, manualCost: 40, unlockRealm: 0 },
+  { baseQps: 90, baseCost: 3000, manualCost: 900, unlockRealm: 1 },
+  { baseQps: 1100, baseCost: 1.2e5, manualCost: 1.5e4, unlockRealm: 2 },
+  { baseQps: 15000, baseCost: 6e6, manualCost: 2.5e5, unlockRealm: 3 },
+  { baseQps: 2.2e5, baseCost: 4e8, manualCost: 3e6, unlockRealm: 4 },
 ];
+
+type ManualText = [string, string, Element, string];
+const LIBRARIES: ManualText[][] = [
+  [
+    ['cloudgaze', 'Cloud-Gazing Breath', 'Water', 'Every new disciple lies on the cloud terrace and learns to breathe with the sky.'],
+    ['driftmist', 'Drifting Mist Sutra', 'Water', 'Let qi spread thin as mist, then gather it in a single breath.'],
+    ['rainpine', 'Rain-on-Pine Method', 'Wood', 'Qi falls like rain and is drunk by the roots.'],
+    ['stilllake', 'Still Lake Mind Art', 'Water', 'A mind without ripples gathers more.'],
+    ['silverthunder', 'Silver Thunder Canon', 'Metal', 'Hidden in the sect\'s highest pavilion, it calls lightning into the meridians.'],
+    ['thousandrivers', 'Thousand Rivers Return', 'Water', 'Every river runs to the sea. So does every breath of qi.'],
+  ],
+  [
+    ['bellows', 'Bellows Breathing', 'Fire', 'Breathe like a forge bellows: short, hot and steady.'],
+    ['emberheart', 'Ember Heart Sutra', 'Fire', 'Fans a small flame below the navel.'],
+    ['ironspine', 'Iron Spine Scripture', 'Metal', 'Forge the spine into a channel of steel.'],
+    ['moltencore', 'Molten Core Canon', 'Fire', 'Melt the dantian down and pour it into a stronger mould.'],
+    ['tenforge', 'Ten-Forge Body Art', 'Metal', 'Ten temperings, each one hotter than the last.'],
+    ['phoenixash', 'Phoenix Ash Sutra', 'Fire', 'What burns completely is reborn complete.'],
+  ],
+  [
+    ['ninebreaths', 'Nine Breaths Sitting', 'Earth', 'The monastery\'s first lesson. Humble, steady.'],
+    ['mountainroot', 'Mountain Root Stance', 'Earth', 'Stand until the mountain forgets you are not part of it.'],
+    ['willowroot', 'Willow Root Breathing', 'Wood', 'Draw qi up from the earth like sap.'],
+    ['bedrock', 'Bedrock Silence Sutra', 'Earth', 'Below every noise there is stone, and stone is quiet.'],
+    ['deepspring', 'Deep Spring Meditation', 'Water', 'Water that has waited a thousand years under the mountain.'],
+    ['unmovingpeak', 'Unmoving Peak Canon', 'Earth', 'Nothing moves the peak. Everything moves around it.'],
+  ],
+];
+
+export const TECHNIQUES: Technique[] = LIBRARIES.flatMap((lib, sect) =>
+  lib.map(([id, name, element, blurb], tier) => ({ id, name, sect, tier, element, blurb, ...TIERS[tier] })),
+);
+
+export function starterManual(sect: number): number {
+  return TECHNIQUES.findIndex((t) => t.sect === sect && t.tier === 0);
+}
+
+// Sect contribution: earned mainly from chores, and partly from beast hunts.
+export interface Chore {
+  id: string;
+  name: string;
+  blurb: string;
+  seconds: number;
+  contribution: number; // at Body Tempering stage 1; scales with your rank
+  unlockRealm: number;
+}
+
+export const CHORES: Chore[] = [
+  { id: 'sweep', name: 'Sweep the courtyard', blurb: 'Ten thousand steps of stone, and every one has leaves on it.', seconds: 10, contribution: 3, unlockRealm: 0 },
+  { id: 'water', name: 'Carry water up the mountain', blurb: 'Two buckets, a yoke and nine hundred stairs.', seconds: 25, contribution: 9, unlockRealm: 0 },
+  { id: 'herbs', name: 'Tend the spirit herb garden', blurb: 'Pull weeds without bruising a single leaf of ginseng.', seconds: 60, contribution: 25, unlockRealm: 0 },
+  { id: 'gate', name: 'Guard the mountain gate', blurb: 'Stand watch, turn away beggars, welcome the sect\'s guests.', seconds: 120, contribution: 60, unlockRealm: 1 },
+  { id: 'scriptures', name: 'Copy scriptures in the pavilion', blurb: 'Brush every stroke exactly. The elders check.', seconds: 300, contribution: 180, unlockRealm: 1 },
+  { id: 'caravan', name: 'Escort a sect caravan', blurb: 'Guard spirit stones on the road to the market town.', seconds: 600, contribution: 420, unlockRealm: 2 },
+  { id: 'instruct', name: 'Instruct outer disciples', blurb: 'Teach the newest disciples the breathing you once struggled with.', seconds: 900, contribution: 720, unlockRealm: 3 },
+];
+
+export const CHORE_STAGE_MULT = 1.12;
+export const CHORE_REALM_MULT = 4;
+export const CHORE_TAP_SECONDS = 0.5; // tapping a running chore works harder
+export const HUNT_CONTRIB_SHARE = 0.25; // contribution per kill as a share of the stone reward
 
 export const TECH_COST_GROWTH = 1.18;
 export const TECH_MILESTONES = [10, 25, 50, 100, 150, 200]; // each doubles that technique
@@ -88,7 +175,7 @@ export const INNATE_QPS = 1;
 
 // Qi needed to fill the bar at global stage index g (realm * 9 + stage - 1).
 export const REQ_BASE = 25;
-export const REQ_GROWTH = 1.55;
+export const REQ_GROWTH = 1.75;
 export const REQ_REALM_JUMP = 3;
 
 export const TAP_SECONDS = 1; // a Circulate tap is worth this many seconds of qi
@@ -149,6 +236,7 @@ export const KARMA_NODES: KarmaNode[] = [
   { id: 'thirdeye', name: 'Third Eye', blurb: (l) => `Insight from failures x${fmtMult(1 + 0.5 * l)} (next x${fmtMult(1 + 0.5 * (l + 1))})`, baseCost: 3, costGrowth: 2.5, maxLevel: 6 },
   { id: 'autoadvance', name: 'Flowing Stages', blurb: () => 'Automation: advance minor stages on your own', baseCost: 6, costGrowth: 1, maxLevel: 1 },
   { id: 'autobreak', name: 'Heaven-Sensing Instinct', blurb: () => 'Automation: attempt breakthroughs when the odds are good', baseCost: 25, costGrowth: 1, maxLevel: 1, requires: 'autoadvance' },
+  { id: 'fatedmeeting', name: 'Fated Meeting', blurb: () => 'Choose which sect\'s elder finds you in each new life', baseCost: 8, costGrowth: 1, maxLevel: 1 },
   { id: 'seclusion', name: 'Deep Seclusion', blurb: (l) => `Offline gains capped at ${8 + l * 4}h (next ${8 + (l + 1) * 4}h)`, baseCost: 4, costGrowth: 2.5, maxLevel: 6 },
 ];
 
@@ -166,23 +254,41 @@ function fmtMult(x: number): string {
 }
 
 // Beast hunts: an auto-battle side activity that pays spirit stones.
+export interface Stats {
+  attack: number;
+  defense: number;
+  vitality: number; // max health
+  speed: number;
+}
+
 export interface HuntGround {
   id: string;
   name: string;
   beast: string;
   unlockRealm: number;
-  hp: number;
-  atk: number;
+  stats: Stats;
   stones: number;
 }
 
 export const HUNT_GROUNDS: HuntGround[] = [
-  { id: 'grove', name: 'Misty Bamboo Grove', beast: 'Iron-Bristle Boar', unlockRealm: 0, hp: 40, atk: 3, stones: 4 },
-  { id: 'ravine', name: 'Whispering Ravine', beast: 'Ravine Shadow Lynx', unlockRealm: 1, hp: 4000, atk: 60, stones: 24 },
-  { id: 'plateau', name: 'Ashen Plateau', beast: 'Cinder-Wing Hawk', unlockRealm: 2, hp: 6e5, atk: 2500, stones: 120 },
-  { id: 'palace', name: 'Drowned Palace', beast: 'Pearl-Eyed Serpent', unlockRealm: 3, hp: 1.5e8, atk: 1.2e5, stones: 600 },
-  { id: 'peak', name: 'Thunderhead Peak', beast: 'Storm-Maned Qilin', unlockRealm: 4, hp: 5e10, atk: 8e6, stones: 3000 },
+  { id: 'grove', name: 'Misty Bamboo Grove', beast: 'Iron-Bristle Boar', unlockRealm: 0, stats: { attack: 13, defense: 6, vitality: 90, speed: 10 }, stones: 18 },
+  { id: 'ravine', name: 'Whispering Ravine', beast: 'Ravine Shadow Lynx', unlockRealm: 1, stats: { attack: 160, defense: 71, vitality: 1060, speed: 30 }, stones: 108 },
+  { id: 'plateau', name: 'Ashen Plateau', beast: 'Cinder-Wing Hawk', unlockRealm: 2, stats: { attack: 2300, defense: 900, vitality: 1.5e4, speed: 60 }, stones: 540 },
+  { id: 'palace', name: 'Drowned Palace', beast: 'Pearl-Eyed Serpent', unlockRealm: 3, stats: { attack: 2.2e4, defense: 8500, vitality: 1.4e5, speed: 85 }, stones: 2700 },
+  { id: 'peak', name: 'Thunderhead Peak', beast: 'Storm-Maned Qilin', unlockRealm: 4, stats: { attack: 2e5, defense: 7.5e4, vitality: 1.3e6, speed: 110 }, stones: 13500 },
 ];
+
+// Player stats: a base that grows with every stage and realm, boosted by equipped manuals by element.
+export const STAT_STAGE_GROWTH = 1.18;
+export const STAT_REALM_MULT = 2;
+export const ELEMENT_STATS: Record<Element, Partial<Record<keyof Stats, number>>> = {
+  Fire: { attack: 1 },
+  Metal: { attack: 0.5, defense: 0.5 },
+  Earth: { defense: 1, vitality: 0.5 },
+  Wood: { vitality: 1, defense: 0.25 },
+  Water: { speed: 1, vitality: 0.25 },
+};
+export const STAT_NAMES: Record<keyof Stats, string> = { attack: 'Attack', defense: 'Defense', vitality: 'Vitality', speed: 'Speed' };
 
 export const HUNT_RECOVER_S = 8;
 export const HUNT_RESPAWN_S = 2; // a new beast appears this long after a kill

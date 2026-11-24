@@ -6,7 +6,8 @@ import {
   REALMS, REALM_QI_MULT, REALM_STONE_MULT, REQ_BASE, REQ_GROWTH, REQ_REALM_JUMP, ROOT_GRADES,
   SECONDS_PER_YEAR, STAGES_PER_REALM, STAGE_QI_MULT, STAGE_STONE_MULT, START_AGE, STRIKE_MULT,
   TAP_SECONDS, TECHNIQUES, TECH_COST_GROWTH, TECH_MILESTONES, clarityPillCost, headStartStones,
-  longevityPillCost, memoryKeep, slotsForRealm,
+  longevityPillCost, memoryKeep, slotsForRealm, SECTS, starterManual, HUNT_CONTRIB_SHARE, CHORES, CHORE_STAGE_MULT, CHORE_REALM_MULT, CHORE_TAP_SECONDS,
+  ELEMENT_STATS, STAT_REALM_MULT, STAT_STAGE_GROWTH, Stats, SECT_RANKS,
 } from './data';
 
 export type LogKind = 'info' | 'good' | 'bad' | 'karma';
@@ -18,6 +19,7 @@ export interface LogEntry {
 }
 
 export interface TechState {
+  owned: boolean; // manual granted by your sect this life
   lvl: number;
   masteryXp: number;
 }
@@ -39,7 +41,11 @@ export interface PassingInfo {
 }
 
 export interface GameState {
-  version: 1;
+  version: 3;
+  sect: number | null; // null until an elder brings you to a sect
+  fatedSect: number; // the sect whose elder finds you this life
+  contribution: number;
+  chore: { id: string | null; progress: number; done: number };
   qi: number;
   realm: number;
   stage: number; // 1..9
@@ -74,10 +80,11 @@ export interface GameState {
 
 export function newGame(now = Date.now()): GameState {
   const s: GameState = {
-    version: 1,
+    version: 3,
+    sect: null, fatedSect: 0, contribution: 0, chore: { id: null, progress: 0, done: 0 },
     qi: 0, realm: 0, stage: 1, stones: 0, insight: 0, age: START_AGE, lifeQi: 0,
-    techs: TECHNIQUES.map(() => ({ lvl: 0, masteryXp: 0 })),
-    equipped: [0],
+    techs: TECHNIQUES.map(() => ({ owned: false, lvl: 0, masteryXp: 0 })),
+    equipped: [],
     root: { element: 'Earth', grade: 0 },
     clarityPills: 0, longevityUsed: 0, bonusYears: 0, heartDemon: 0,
     karma: 0, karmaEarned: 0, karmaUp: {},
@@ -90,8 +97,8 @@ export function newGame(now = Date.now()): GameState {
     lastSeen: now, playSeconds: 0,
   };
   s.root = rollRoot(s);
-  s.techs[0].lvl = 1;
-  log(s, `Your first life begins. Spiritual root: ${rootLabel(s)}.`, 'info');
+  s.fatedSect = fatedSectFor(s);
+  log(s, `You are sixteen, a mortal in Willowford village with a ${rootLabel(s)} spiritual root that nobody has noticed. Yet.`, 'info');
   return s;
 }
 
@@ -117,6 +124,12 @@ function rollRoot(s: GameState): { element: Element; grade: number } {
   return { element, grade };
 }
 
+/** The elder who finds you comes from the sect whose library best suits your root. */
+export function fatedSectFor(s: GameState): number {
+  const scores = SECTS.map((_, i) => TECHNIQUES.filter((t) => t.sect === i && t.element === s.root.element).length + Math.random() * 0.5);
+  return scores.indexOf(Math.max(...scores));
+}
+
 export function rootLabel(s: GameState): string {
   return `${ROOT_GRADES[s.root.grade].name} ${s.root.element}`;
 }
@@ -139,7 +152,7 @@ export function stageReq(s: GameState): number {
 }
 
 export function lifespan(s: GameState): number {
-  return REALMS[s.realm].lifespan + 20 * k(s, 'longevity') + s.bonusYears;
+  return REALMS[s.realm].lifespan + 20 * k(s, 'longevity') + s.bonusYears + (s.sect === null ? 0 : SECTS[s.sect].bonusYears);
 }
 
 export function masteryLevel(xp: number): number {
@@ -167,10 +180,12 @@ export function globalQiMult(s: GameState): number {
     * Math.pow(REALM_QI_MULT, s.realm)
     * ROOT_GRADES[s.root.grade].mult
     * Math.pow(1.5, k(s, 'echoes'))
+    * (s.sect === null ? 1 : SECTS[s.sect].qiMult)
     * (s.heartDemon > 0 ? HEART_DEMON_MULT : 1);
 }
 
 export function qps(s: GameState): number {
+  if (s.sect === null) return 0;
   let base = INNATE_QPS;
   for (const i of s.equipped) base += techQps(s, i);
   return base * globalQiMult(s);
@@ -196,7 +211,7 @@ export function insightBonus(s: GameState): number {
 
 export function breakChance(s: GameState): number {
   const base = REALMS[s.realm].breakChance;
-  const c = base + 0.06 * k(s, 'daoheart') + PILL_BREAK_BONUS * s.clarityPills + insightBonus(s);
+  const c = base + (s.sect === null ? 0 : SECTS[s.sect].breakBonus) + 0.06 * k(s, 'daoheart') + PILL_BREAK_BONUS * s.clarityPills + insightBonus(s);
   return Math.min(0.98, c);
 }
 
@@ -205,7 +220,7 @@ export function atBottleneck(s: GameState): boolean {
 }
 
 export function canAdvance(s: GameState): boolean {
-  return !s.passing && s.qi >= stageReq(s);
+  return !s.passing && s.sect !== null && s.qi >= stageReq(s);
 }
 
 export function sealedAtTop(s: GameState): boolean {
@@ -226,14 +241,60 @@ export function offlineCap(s: GameState): number {
   return OFFLINE_BASE_CAP_S + k(s, 'seclusion') * 4 * 3600;
 }
 
-export function playerAttack(s: GameState): number {
-  return 2 * Math.pow(qps(s), 0.8);
+export function sectRank(s: GameState): string {
+  return SECT_RANKS[Math.min(SECT_RANKS.length - 1, s.realm)];
 }
 
-export function playerMaxHp(s: GameState): number {
-  const g = globalStage(s);
-  return 30 * Math.pow(1.22, g) * Math.pow(2.5, s.realm);
+export function elixirMult(s: GameState): number {
+  return s.sect === null ? 1 : SECTS[s.sect].elixirCostMult;
 }
+
+/** Manual bonus to stats: grows with level and mastery, by the manual's element. */
+export function manualStatBonus(s: GameState): Stats {
+  const b: Stats = { attack: 0, defense: 0, vitality: 0, speed: 0 };
+  for (const i of s.equipped) {
+    const t = TECHNIQUES[i];
+    const st = s.techs[i];
+    if (st.lvl === 0) continue;
+    const power = 0.25 * Math.log2(1 + st.lvl) * (1 + 0.1 * masteryLevel(st.masteryXp));
+    const shares = ELEMENT_STATS[t.element];
+    for (const key of Object.keys(shares) as (keyof Stats)[]) b[key] += power * (shares[key] ?? 0);
+  }
+  return b;
+}
+
+export function playerStats(s: GameState): Stats {
+  const g = globalStage(s);
+  const p = 10 * Math.pow(STAT_STAGE_GROWTH, g) * Math.pow(STAT_REALM_MULT, s.realm);
+  const b = manualStatBonus(s);
+  const sect = s.sect === null ? null : SECTS[s.sect];
+  return {
+    attack: p * (1 + b.attack) * (sect?.huntAtkMult ?? 1),
+    defense: 0.6 * p * (1 + b.defense),
+    vitality: 10 * p * (1 + b.vitality),
+    speed: (10 + 2 * g) * (1 + b.speed),
+  };
+}
+
+/** Damage per second one side deals to the other. Defense softens hits; speed decides who strikes more often. */
+export function damagePerSec(att: Stats, def: Stats): number {
+  const speed = Math.min(2, Math.max(0.5, Math.sqrt(att.speed / def.speed)));
+  return att.attack * (att.attack / (att.attack + def.defense)) * speed;
+}
+
+export interface Matchup { killTime: number; surviveTime: number; verdict: 'Easy' | 'Risky' | 'Too dangerous' }
+
+export function matchup(s: GameState, ground: number): Matchup {
+  const me = playerStats(s);
+  const beast = HUNT_GROUNDS[ground].stats;
+  const killTime = beast.vitality / Math.max(1e-9, damagePerSec(me, beast));
+  const incoming = damagePerSec(beast, me) - me.vitality * HUNT_REGEN;
+  const surviveTime = incoming <= 0 ? Infinity : me.vitality / incoming;
+  const verdict = killTime < surviveTime * 0.5 ? 'Easy' : killTime < surviveTime ? 'Risky' : 'Too dangerous';
+  return { killTime, surviveTime, verdict };
+}
+
+export const HUNT_REGEN = 0.02; // share of vitality recovered per second in a fight
 
 export function canReincarnate(s: GameState): boolean {
   return s.realm >= 1 && !s.passing;
@@ -284,17 +345,68 @@ export function attemptBreakthrough(s: GameState): boolean {
   return false;
 }
 
+export function joinSect(s: GameState, sect: number) {
+  if (s.sect !== null || s.passing) return;
+  if (sect !== s.fatedSect && !k(s, 'fatedmeeting')) return;
+  s.sect = sect;
+  const first = starterManual(sect);
+  s.techs[first].owned = true;
+  s.techs[first].lvl = 1;
+  s.equipped = [first];
+  s.chore = { id: CHORES[0].id, progress: 0, done: 0 };
+  log(s, `${SECTS[sect].elder} brings you to the ${SECTS[sect].name}. As a new Outer Disciple you receive ${TECHNIQUES[first].name}, a broom and a long list of chores.`, 'good');
+}
+
+export function choreReward(s: GameState, i: number): number {
+  return CHORES[i].contribution * Math.pow(CHORE_STAGE_MULT, globalStage(s)) * Math.pow(CHORE_REALM_MULT, s.realm);
+}
+
+export function setChore(s: GameState, id: string | null) {
+  if (s.sect === null) return;
+  const c = CHORES.find((x) => x.id === id);
+  if (id !== null && (!c || c.unlockRealm > s.realm)) return;
+  s.chore = { id, progress: 0, done: s.chore.done };
+}
+
+export function workHard(s: GameState) {
+  if (s.chore.id === null || s.passing) return;
+  tickChore(s, CHORE_TAP_SECONDS);
+}
+
+function tickChore(s: GameState, dt: number) {
+  if (s.chore.id === null) return;
+  const i = CHORES.findIndex((x) => x.id === s.chore.id);
+  const c = CHORES[i];
+  s.chore.progress += dt;
+  while (s.chore.progress >= c.seconds) {
+    s.chore.progress -= c.seconds;
+    s.contribution += choreReward(s, i);
+    s.chore.done += 1;
+  }
+}
+
+export function canObtainManual(s: GameState, i: number): boolean {
+  const t = TECHNIQUES[i];
+  return s.sect === t.sect && !s.techs[i].owned && t.unlockRealm <= s.realm && s.contribution >= t.manualCost;
+}
+
+export function obtainManual(s: GameState, i: number): boolean {
+  if (!canObtainManual(s, i)) return false;
+  const t = TECHNIQUES[i];
+  s.contribution -= t.manualCost;
+  s.techs[i].owned = true;
+  s.techs[i].lvl = 1;
+  log(s, `The Scripture Pavilion grants you ${t.name}.`, 'good');
+  if (s.equipped.length < slots(s)) s.equipped.push(i);
+  return true;
+}
+
 export function buyTech(s: GameState, i: number): boolean {
-  if (TECHNIQUES[i].unlockRealm > s.realm) return false;
+  if (!s.techs[i].owned) return false;
   const cost = techCost(s, i);
   if (s.stones < cost) return false;
   s.stones -= cost;
-  const first = s.techs[i].lvl === 0;
   s.techs[i].lvl += 1;
-  if (first) {
-    log(s, `You learn ${TECHNIQUES[i].name}.`, 'info');
-    if (s.equipped.length < slots(s) && !s.equipped.includes(i)) s.equipped.push(i);
-  }
   return true;
 }
 
@@ -313,13 +425,13 @@ export function toggleEquip(s: GameState, i: number): boolean {
 
 function autoEquip(s: GameState) {
   while (s.equipped.length > slots(s)) s.equipped.shift();
-  const owned = TECHNIQUES.map((_, i) => i).filter((i) => s.techs[i].lvl > 0 && !s.equipped.includes(i));
+  const owned = TECHNIQUES.map((_, i) => i).filter((i) => s.techs[i].owned && !s.equipped.includes(i));
   owned.sort((a, b) => techQps(s, b) - techQps(s, a));
   while (s.equipped.length < slots(s) && owned.length) s.equipped.push(owned.shift()!);
 }
 
 export function buyClarity(s: GameState): boolean {
-  const cost = clarityPillCost(s.realm);
+  const cost = clarityPillCost(s.realm) * elixirMult(s);
   if (s.stones < cost || s.clarityPills >= MAX_BREAK_PILLS) return false;
   s.stones -= cost;
   s.clarityPills += 1;
@@ -327,7 +439,7 @@ export function buyClarity(s: GameState): boolean {
 }
 
 export function buyLongevity(s: GameState): boolean {
-  const cost = longevityPillCost(s.realm, s.longevityUsed);
+  const cost = longevityPillCost(s.realm, s.longevityUsed) * elixirMult(s);
   if (s.stones < cost || s.longevityUsed >= MAX_LONGEVITY_PILLS) return false;
   s.stones -= cost;
   s.longevityUsed += 1;
@@ -363,32 +475,36 @@ export function beginNextLife(s: GameState) {
   s.karma += karma;
   s.karmaEarned += karma;
   const keep = memoryKeep(k(s, 'memories'));
-  s.techs = s.techs.map((t) => ({ lvl: 0, masteryXp: t.masteryXp * keep }));
-  s.techs[0].lvl = 1;
-  s.equipped = [0];
+  s.techs = s.techs.map((t) => ({ owned: false, lvl: 0, masteryXp: t.masteryXp * keep }));
+  s.equipped = [];
+  s.sect = null;
+  s.contribution = 0;
+  s.chore = { id: null, progress: 0, done: 0 };
   s.qi = 0; s.realm = 0; s.stage = 1; s.insight = 0; s.age = START_AGE; s.lifeQi = 0;
   s.stones = headStartStones(k(s, 'headstart'));
   s.clarityPills = 0; s.longevityUsed = 0; s.bonusYears = 0; s.heartDemon = 0;
   s.hunt = { ground: null, beastHp: 0, playerHp: 0, recover: 0, respawn: 0, kills: 0 };
   s.lives += 1;
   s.root = rollRoot(s);
+  s.fatedSect = fatedSectFor(s);
   s.passing = null;
-  log(s, `Life ${s.lives} begins with ${karma} new Karma. Spiritual root: ${rootLabel(s)}.`, 'karma');
+  log(s, `Life ${s.lives} begins with ${karma} new Karma. At sixteen, an elder comes looking for you again. Spiritual root: ${rootLabel(s)}.`, 'karma');
 }
 
 export function setHunt(s: GameState, ground: number | null) {
+  if (s.sect === null) return;
   if (ground !== null && HUNT_GROUNDS[ground].unlockRealm > s.realm) return;
   s.hunt.ground = ground;
   if (ground !== null) {
-    s.hunt.beastHp = HUNT_GROUNDS[ground].hp;
-    s.hunt.playerHp = playerMaxHp(s);
+    s.hunt.beastHp = HUNT_GROUNDS[ground].stats.vitality;
+    s.hunt.playerHp = playerStats(s).vitality;
   }
 }
 
 export function strike(s: GameState) {
   const h = s.hunt;
   if (h.ground === null || h.recover > 0 || h.respawn > 0 || s.passing) return;
-  h.beastHp -= playerAttack(s) * STRIKE_MULT * 0.5;
+  h.beastHp -= damagePerSec(playerStats(s), HUNT_GROUNDS[h.ground].stats) * STRIKE_MULT * 0.5;
   resolveKill(s);
 }
 
@@ -396,9 +512,11 @@ function resolveKill(s: GameState) {
   const h = s.hunt;
   if (h.ground === null || h.beastHp > 0) return;
   const g = HUNT_GROUNDS[h.ground];
-  s.stones += g.stones * Math.pow(1.5, k(s, 'vein'));
+  const reward = g.stones * Math.pow(1.5, k(s, 'vein'));
+  s.stones += reward;
+  s.contribution += reward * HUNT_CONTRIB_SHARE;
   h.kills += 1;
-  h.beastHp = g.hp;
+  h.beastHp = g.stats.vitality;
   h.respawn = HUNT_RESPAWN_S;
 }
 
@@ -407,37 +525,38 @@ function resolveKill(s: GameState) {
 function tickHunt(s: GameState, dt: number) {
   const h = s.hunt;
   if (h.ground === null) return;
+  const me = playerStats(s);
   if (h.recover > 0) {
     h.recover = Math.max(0, h.recover - dt);
-    if (h.recover === 0) h.playerHp = playerMaxHp(s);
+    if (h.recover === 0) h.playerHp = me.vitality;
     return;
   }
   if (h.respawn > 0) {
     h.respawn = Math.max(0, h.respawn - dt);
-    h.playerHp = Math.min(playerMaxHp(s), h.playerHp + playerMaxHp(s) * 0.1 * dt);
+    h.playerHp = Math.min(me.vitality, h.playerHp + me.vitality * 0.1 * dt);
     return;
   }
   const g = HUNT_GROUNDS[h.ground];
-  h.beastHp -= playerAttack(s) * dt;
+  h.beastHp -= damagePerSec(me, g.stats) * dt;
   resolveKill(s);
-  h.playerHp -= g.atk * dt;
-  // passive regeneration
-  h.playerHp = Math.min(playerMaxHp(s), h.playerHp + playerMaxHp(s) * 0.03 * dt);
+  h.playerHp -= damagePerSec(g.stats, me) * dt;
+  h.playerHp = Math.min(me.vitality, h.playerHp + me.vitality * HUNT_REGEN * dt);
   if (h.playerHp <= 0) {
     // Retreat: no loss, just a short rest.
     h.recover = HUNT_RECOVER_S;
-    h.beastHp = g.hp;
+    h.beastHp = g.stats.vitality;
     h.playerHp = 0;
   }
 }
 
 /** Advance the game by dt seconds. ageRate scales how fast lifespan passes. */
 export function tick(s: GameState, dt: number, ageRate = 1) {
-  if (s.passing) return;
+  if (s.passing || s.sect === null) return; // a mortal waiting at the fair does not age
   const gain = qps(s) * dt;
   s.qi += gain;
   s.lifeQi += gain;
   s.stones += stonesPerSec(s) * dt;
+  tickChore(s, dt);
   for (const i of s.equipped) s.techs[i].masteryXp += dt;
   if (s.heartDemon > 0) s.heartDemon = Math.max(0, s.heartDemon - dt);
   tickHunt(s, dt);
@@ -472,7 +591,7 @@ export interface OfflineReport {
 export function applyOffline(s: GameState, now = Date.now()): OfflineReport | null {
   const away = Math.min(offlineCap(s), Math.max(0, (now - s.lastSeen) / 1000));
   s.lastSeen = now;
-  if (away < 30 || s.passing) return null;
+  if (away < 30 || s.passing || s.sect === null) return null;
   const before = { qi: s.lifeQi, stones: s.stones, g: globalStage(s), realm: s.realm, kills: s.hunt.kills };
   const steps = Math.min(4000, Math.ceil(away));
   const dt = away / steps;
@@ -492,7 +611,7 @@ export function applyOffline(s: GameState, now = Date.now()): OfflineReport | nu
   };
 }
 
-export const SAVE_KEY = 'ten-thousand-lifetimes-save-v1';
+export const SAVE_KEY = 'ten-thousand-lifetimes-save-v3';
 
 export function serialize(s: GameState): string {
   return btoa(unescape(encodeURIComponent(JSON.stringify(s))));
@@ -501,11 +620,11 @@ export function serialize(s: GameState): string {
 export function deserialize(text: string): GameState | null {
   try {
     const obj = JSON.parse(decodeURIComponent(escape(atob(text.trim()))));
-    if (!obj || obj.version !== 1) return null;
+    if (!obj || obj.version !== 3) return null;
     const fresh = newGame();
     const merged: GameState = { ...fresh, ...obj };
     // tolerate saves from builds with fewer techniques
-    merged.techs = TECHNIQUES.map((_, i) => obj.techs?.[i] ?? { lvl: 0, masteryXp: 0 });
+    merged.techs = TECHNIQUES.map((_, i) => obj.techs?.[i] ?? { owned: false, lvl: 0, masteryXp: 0 });
     merged.hunt = { ...fresh.hunt, ...(obj.hunt ?? {}) };
     return merged;
   } catch {

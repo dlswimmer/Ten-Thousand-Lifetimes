@@ -66,6 +66,7 @@ button { font: inherit; color: inherit; }
 .dot.stone { background: var(--stone); }
 .dot.insight { background: var(--gold); }
 .dot.karma { background: var(--karma); }
+.dot.contrib { background: var(--crimson); }
 
 .muted { color: var(--muted); }
 .small { font-size: 12.5px; }
@@ -180,3 +181,36 @@ button { font: inherit; color: inherit; }
 .modal .row { justify-content: flex-end; }
 .report { padding-left: 18px; line-height: 1.7; }
 .save-text { width: 100%; margin-top: 10px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 11px; font-family: monospace; }
+
+/* sect fair */
+.fair p { line-height: 1.5; }
+.sect-name { font-family: var(--font); font-size: 18px; }
+.sect-motto { font-style: italic; }
+.tag { display: inline-block; padding: 3px 8px; border-radius: 999px; background: var(--panel-2); color: var(--gold); }
+.elements { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.elem.tiny { width: 26px; height: 26px; font-size: 14px; border-radius: 8px; }
+.elem.match { box-shadow: 0 0 0 1px var(--gold); }
+.btn.contrib { background: #5a2c2a; border-color: var(--crimson); }
+.empty { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding-top: 12px; }
+.mini-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 12px 0 6px; font-weight: 600; }
+
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.stat-name { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.stat-val { font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.stat-vs { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stat.ahead .stat-val { color: var(--jade); }
+.stat.behind .stat-val { color: var(--crimson); }
+
+/* encounter and chores */
+.encounter { display: flex; flex-direction: column; gap: 12px; }
+.elder-card { border-color: var(--gold); }
+.elder-name { font-family: var(--font); font-size: 18px; color: var(--gold); }
+.speech { font-family: var(--font); font-size: 15px; line-height: 1.55; margin: 0; }
+.chore-now { display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--jade-dim); border-radius: 14px; padding: 12px; margin-top: 10px; }
+.chore-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.chore-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.chore-row.on { border-color: var(--jade-dim); }
+.chore-row.locked { opacity: 0.5; }
+.chore-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

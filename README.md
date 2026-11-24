@@ -6,12 +6,16 @@ An idle/incremental cultivation game for mobile. Gather qi, break through realm 
 
 ## Prototype v0.1
 
-- Qi cultivation with 9 minor stages per realm and 5 realms (Body Tempering to Nascent Soul)
+- You start as a mortal. An elder from the sect that best suits your spiritual root finds you and brings you in (the Fated Meeting Karma upgrade lets you choose)
+- Three sects (Azure Cloud Sect, Crimson Furnace Valley, Stoneheart Monastery), each with its own bonus and a library of six manuals
+- Sect chores earn contribution, which buys manuals from the Scripture Pavilion; higher manuals need a higher sect rank
+- Stats (attack, defense, vitality, speed) grow with your realm and your equipped manuals' elements, and are compared with each beast on hunts
+- Qi cultivation with 9 minor stages per realm and 5 realms (Body Tempering to Nascent Soul). The first life is short on progress; Karma makes later lives faster
 - Chance-based breakthroughs; failures always grant Insight, which raises the next attempt's odds
 - Lifespan that grows with each realm. When it runs out you pass peacefully and get the same Karma as a voluntary reincarnation, so there is never a penalty. Offline seclusion does not age you.
-- Six cultivation arts with levels, milestones and mastery; a spiritual root rolled each life
-- Karma tree with 11 nodes, including automation (auto-advance, auto-breakthrough)
-- Auto-battle beast hunts for spirit stones (retreat costs nothing)
+- Manuals with levels, milestones and mastery; a spiritual root rolled each life
+- Karma tree with 12 nodes, including automation (auto-advance, auto-breakthrough)
+- Auto-battle beast hunts for spirit stones and some contribution (retreat costs nothing)
 - Elixirs for breakthrough chance and extra years
 - Offline progress (8 hours, more with Karma), autosave, export and import
 

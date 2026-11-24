@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as E from './game/engine';
 import {
-  ELEMENT_GLYPH, FINAL_REALM, HUNT_GROUNDS, KARMA_NODES, LONGEVITY_PILL_YEARS, MAX_BREAK_PILLS,
+  ELEMENT_GLYPH, FINAL_REALM, HUNT_GROUNDS, SECTS, CHORES, STAT_NAMES, type Stats, ELEMENT_STATS, KARMA_NODES, LONGEVITY_PILL_YEARS, MAX_BREAK_PILLS,
   MAX_LONGEVITY_PILLS, PILLS, REALMS, ROOT_GRADES, STAGES_PER_REALM, TECHNIQUES, TECH_MILESTONES,
   clarityPillCost, longevityPillCost,
 } from './game/data';
@@ -11,7 +11,7 @@ type Tab = 'cultivate' | 'techniques' | 'hunt' | 'elixirs' | 'karma';
 
 const TABS: { id: Tab; label: string; glyph: string }[] = [
   { id: 'cultivate', label: 'Cultivate', glyph: '氣' },
-  { id: 'techniques', label: 'Arts', glyph: '經' },
+  { id: 'techniques', label: 'Sect', glyph: '宗' },
   { id: 'hunt', label: 'Hunt', glyph: '獵' },
   { id: 'elixirs', label: 'Elixirs', glyph: '丹' },
   { id: 'karma', label: 'Karma', glyph: '業' },
@@ -102,8 +102,8 @@ export default function App() {
       <header className="top">
         <div className="top-row">
           <div>
-            <div className="realm">{REALMS[s.realm].name}</div>
-            <div className="sub">Stage {s.stage} of {STAGES_PER_REALM} · Life {s.lives}</div>
+            <div className="realm">{s.sect === null ? 'Mortal' : REALMS[s.realm].name}</div>
+            <div className="sub">{s.sect === null ? `Willowford village · Life ${s.lives}` : `Stage ${s.stage} of ${STAGES_PER_REALM} · ${E.sectRank(s)}, ${SECTS[s.sect].name}`}</div>
           </div>
           <div className="top-right">
             <button className="root-badge" title="Spiritual root" onClick={() => setShowMenu(true)}>
@@ -120,17 +120,27 @@ export default function App() {
           <div className="bar thin"><div className="fill life-fill" style={{ width: `${agePct * 100}%` }} /></div>
         </div>
         <div className="purse">
-          <span className="chip"><span className="dot stone" />{fmt(s.stones)} stones <span className="muted">+{fmt(E.stonesPerSec(s))}/s</span></span>
+          <span className="chip"><span className="dot stone" />{fmt(s.stones)} stones {s.sect !== null && <span className="muted">+{fmt(E.stonesPerSec(s))}/s</span>}</span>
+          {s.sect !== null && <span className="chip"><span className="dot contrib" />{fmt(s.contribution)} contribution</span>}
           <span className="chip"><span className="dot insight" />{fmt(s.insight)} insight</span>
           <span className="chip"><span className="dot karma" />{fmt(s.karma)} karma</span>
         </div>
       </header>
 
       <main className="content">
-        {tab === 'cultivate' && <Cultivate s={s} act={act} onCirculate={onCirculate} floaters={floaters} />}
-        {tab === 'techniques' && <Techniques s={s} act={act} />}
-        {tab === 'hunt' && <Hunt s={s} act={act} />}
-        {tab === 'elixirs' && <Elixirs s={s} act={act} />}
+        {tab === 'cultivate' && (s.sect === null
+          ? <Encounter s={s} act={act} />
+          : <Cultivate s={s} act={act} onCirculate={onCirculate} floaters={floaters} />)}
+        {tab !== 'cultivate' && tab !== 'karma' && s.sect === null && (
+          <section className="empty">
+            <h2 className="section-title">You are still a mortal</h2>
+            <p className="muted">Only sect disciples are taught to cultivate. Someone is coming for you.</p>
+            <button className="btn primary" onClick={() => setTab('cultivate')}>Return to the village</button>
+          </section>
+        )}
+        {tab === 'techniques' && s.sect !== null && <><Chores s={s} act={act} /><Techniques s={s} act={act} /></>}
+        {tab === 'hunt' && s.sect !== null && <Hunt s={s} act={act} />}
+        {tab === 'elixirs' && s.sect !== null && <Elixirs s={s} act={act} />}
         {tab === 'karma' && <Karma s={s} act={act} onReincarnate={() => setConfirmReincarnate(true)} />}
       </main>
 
@@ -164,7 +174,7 @@ export default function App() {
         <Modal onClose={() => setConfirmReincarnate(false)}>
           <h2>Enter the cycle of rebirth?</h2>
           <p>You will be reborn at Body Tempering with <b>{E.karmaForLife(s)} Karma</b>. That is exactly what you would receive if this life ran its natural course, so there is no penalty for waiting or for going now.</p>
-          <p className="muted">Kept: Karma, Karma upgrades, {Math.round(100 * (0.1 + 0.15 * E.k(s, 'memories')))}% of technique mastery. Reset: realm, qi, stones, technique levels, pills.</p>
+          <p className="muted">Kept: Karma, Karma upgrades, {Math.round(100 * (0.1 + 0.15 * E.k(s, 'memories')))}% of manual mastery. Reset: realm, sect membership, manuals, qi, stones, contribution, pills.</p>
           <div className="row">
             <button className="btn" onClick={() => setConfirmReincarnate(false)}>Stay</button>
             <button className="btn karma" onClick={() => { act((st) => E.endLife(st, true)); setConfirmReincarnate(false); }}>Reincarnate</button>
@@ -183,6 +193,7 @@ export default function App() {
           <div className="big-karma">+{s.passing.karma} Karma</div>
           <p className="muted center">Reached {REALMS[s.passing.realm].name}, stage {s.passing.stage}. Spend Karma in the Karma tab to make every life stronger.</p>
           <button className="btn karma wide" onClick={() => { act(E.beginNextLife); setTab('karma'); }}>Be reborn</button>
+          <p className="small muted center">In your next life an elder will find you again. Your mastery of past manuals partly carries over.</p>
         </Modal>
       )}
 
@@ -259,6 +270,8 @@ function Cultivate({ s, act, onCirculate, floaters }: { s: E.GameState; act: Act
 
       <Automation s={s} act={act} />
 
+      <StatStrip stats={E.playerStats(s)} />
+
       <p className="flavor">{REALMS[s.realm].blurb}</p>
 
       <div className="log">
@@ -289,41 +302,150 @@ function Automation({ s, act }: { s: E.GameState; act: ActFn }) {
   );
 }
 
-function Techniques({ s, act }: { s: E.GameState; act: ActFn }) {
+function Encounter({ s, act }: { s: E.GameState; act: ActFn }) {
+  const choose = E.k(s, 'fatedmeeting') > 0;
+  const shown = choose ? SECTS.map((_, i) => i) : [s.fatedSect];
+  return (
+    <section className="encounter">
+      <h2 className="section-title">{s.lives === 1 ? 'An elder at the village well' : 'Found again'}</h2>
+      <p className="muted">{s.lives === 1
+        ? 'You are sixteen and have spent your whole life in Willowford, hauling water and splitting wood. Nobody here can sense qi. Today a stranger can.'
+        : choose
+          ? 'Your fated meeting draws more than one elder to the village. Choose whose sect you will follow in this life.'
+          : 'Sixteen years after your rebirth, another stranger arrives in the village and stops in front of you.'}
+      </p>
+      {shown.map((i) => {
+        const sect = SECTS[i];
+        const library = TECHNIQUES.filter((t) => t.sect === i);
+        const matches = library.filter((t) => t.element === s.root.element).length;
+        return (
+          <div key={sect.name} className="card elder-card">
+            <div className="card-title">
+              <b className="elder-name">{sect.elder}</b>
+              <span className="small muted">{sect.name} · <i>{sect.motto}</i></span>
+            </div>
+            <p className="speech">{sect.greeting}</p>
+            <div className="small"><span className="tag">{sect.bonus}</span></div>
+            <div className="elements">
+              {library.map((t) => (
+                <span key={t.id} title={t.name} className={`elem tiny elem-${t.element.toLowerCase()} ${t.element === s.root.element ? 'match' : ''}`}>{ELEMENT_GLYPH[t.element]}</span>
+              ))}
+              <span className="small muted">{matches ? `${matches} of its 6 manuals suit your ${s.root.element} root` : `None of its manuals suit your ${s.root.element} root`}</span>
+            </div>
+            <button className="btn primary" onClick={() => act((x) => E.joinSect(x, i))}>Follow {sect.elder}</button>
+          </div>
+        );
+      })}
+      {!choose && <p className="small muted">The Karma upgrade Fated Meeting lets you choose which elder finds you in later lives. You do not age until you leave the village.</p>}
+    </section>
+  );
+}
+
+function Chores({ s, act }: { s: E.GameState; act: ActFn }) {
+  const current = CHORES.findIndex((c) => c.id === s.chore.id);
   return (
     <section>
-      <h2 className="section-title">Cultivation arts</h2>
-      <p className="muted small">Equipped arts generate qi and gain mastery. Slots: {s.equipped.length} of {E.slots(s)} (more open at Qi Gathering and Golden Core). Arts matching your {s.root.element} root are 60% stronger.</p>
+      <h2 className="section-title">Chores</h2>
+      <p className="muted small">Every disciple works for the sect. Chores repeat on their own, even in seclusion, and pay sect contribution. Tap Work hard to finish faster. Longer chores pay better.</p>
+      {current >= 0 && (
+        <div className="chore-now">
+          <div className="card-head">
+            <div className="card-title">
+              <b>{CHORES[current].name}</b>
+              <span className="small muted">+{fmt(E.choreReward(s, current))} contribution each time · done {s.chore.done} times</span>
+            </div>
+            <button className="btn small primary" onClick={() => act(E.workHard)}>Work hard</button>
+          </div>
+          <div className="bar"><div className="fill" style={{ width: `${(s.chore.progress / CHORES[current].seconds) * 100}%` }} /></div>
+          <span className="small muted">{CHORES[current].blurb}</span>
+        </div>
+      )}
+      <div className="chore-list">
+        {CHORES.map((c, i) => {
+          if (c.unlockRealm > s.realm + 1) return null;
+          const locked = c.unlockRealm > s.realm;
+          const on = i === current;
+          return (
+            <div key={c.id} className={`chore-row ${on ? 'on' : ''} ${locked ? 'locked' : ''}`}>
+              <div className="chore-info">
+                <b className="small">{c.name}</b>
+                <span className="small muted">{locked ? `Requires rank: ${E.sectRank({ ...s, realm: c.unlockRealm })}` : `${fmtTime(c.seconds)} · ${fmt(E.choreReward(s, i) / c.seconds * 60)} contribution per minute`}</span>
+              </div>
+              {!locked && !on && <button className="btn small" onClick={() => act((x) => E.setChore(x, c.id))}>Do this</button>}
+              {on && <span className="small" style={{ color: 'var(--jade)' }}>Working</span>}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function StatStrip({ stats, compare }: { stats: Stats; compare?: Stats }) {
+  const keys = Object.keys(STAT_NAMES) as (keyof Stats)[];
+  return (
+    <div className="stats">
+      {keys.map((key) => {
+        const mine = stats[key];
+        const theirs = compare?.[key];
+        const cls = theirs === undefined ? '' : mine >= theirs ? 'ahead' : 'behind';
+        return (
+          <div key={key} className={`stat ${cls}`}>
+            <span className="stat-name">{STAT_NAMES[key]}</span>
+            <span className="stat-val">{fmt(mine)}</span>
+            {theirs !== undefined && <span className="stat-vs">vs {fmt(theirs)}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function statHint(element: keyof typeof ELEMENT_STATS): string {
+  const shares = ELEMENT_STATS[element];
+  return (Object.keys(shares) as (keyof Stats)[]).map((k) => STAT_NAMES[k]).join(' and ');
+}
+
+function Techniques({ s, act }: { s: E.GameState; act: ActFn }) {
+  const sect = s.sect!;
+  return (
+    <section>
+      <h2 className="section-title">Scripture Pavilion</h2>
+      <p className="muted small">The {SECTS[sect].name} grants manuals for sect contribution, which you earn from chores and hunts. Higher manuals need a higher rank. Equipped manuals generate qi, gain mastery and raise your stats. Slots: {s.equipped.length} of {E.slots(s)}.</p>
       <div className="cards">
         {TECHNIQUES.map((t, i) => {
+          if (t.sect !== sect) return null;
           const st = s.techs[i];
-          const locked = t.unlockRealm > s.realm;
-          if (locked && t.unlockRealm > s.realm + 1) return null;
+          const rankLocked = t.unlockRealm > s.realm;
           const cost = E.techCost(s, i);
           const equipped = s.equipped.includes(i);
           const nextMilestone = TECH_MILESTONES.find((m) => m > st.lvl);
           const mastery = E.masteryLevel(st.masteryXp);
           return (
-            <div key={t.id} className={`card ${equipped ? 'equipped' : ''} ${locked ? 'locked' : ''}`}>
+            <div key={t.id} className={`card ${equipped ? 'equipped' : ''} ${rankLocked ? 'locked' : ''}`}>
               <div className="card-head">
                 <span className={`elem elem-${t.element.toLowerCase()}`}>{ELEMENT_GLYPH[t.element]}</span>
                 <div className="card-title">
                   <b>{t.name}</b>
-                  <span className="muted small">{locked ? `Unlocks at ${REALMS[t.unlockRealm].name}` : `Level ${st.lvl} · mastery ${mastery}${t.element === s.root.element ? ' · root match' : ''}`}</span>
+                  <span className="small muted">
+                    {st.owned ? `Level ${st.lvl} · mastery ${mastery}` : rankLocked ? `Requires rank: ${E.sectRank({ ...s, realm: t.unlockRealm })}` : 'Not yet granted'}
+                    {t.element === s.root.element ? ' · root match' : ''}
+                  </span>
                 </div>
               </div>
-              <p className="small muted">{t.blurb}</p>
-              {!locked && (
+              <p className="small muted">{t.blurb} Raises {statHint(t.element)}.</p>
+              {st.owned ? (
                 <div className="card-foot">
-                  <span className="small">{st.lvl > 0 ? `${fmt(E.techQps(s, i))} base qi/s` : `${fmt(t.baseQps)} qi/s per level`}{nextMilestone ? ` · x2 at level ${nextMilestone}` : ''}</span>
+                  <span className="small">{fmt(E.techQps(s, i))} base qi/s{nextMilestone ? ` · x2 at level ${nextMilestone}` : ''}</span>
                   <div className="row">
-                    {st.lvl > 0 && (
-                      <button className={`btn small ${equipped ? 'on' : ''}`} onClick={() => act((x) => E.toggleEquip(x, i))}>{equipped ? 'Equipped' : 'Equip'}</button>
-                    )}
-                    <button className="btn small primary" disabled={s.stones < cost} onClick={() => act((x) => E.buyTech(x, i))}>
-                      {st.lvl === 0 ? 'Learn' : 'Train'} · {fmt(cost)}
-                    </button>
+                    <button className={`btn small ${equipped ? 'on' : ''}`} onClick={() => act((x) => E.toggleEquip(x, i))}>{equipped ? 'Equipped' : 'Equip'}</button>
+                    <button className="btn small primary" disabled={s.stones < cost} onClick={() => act((x) => E.buyTech(x, i))}>Train · {fmt(cost)} stones</button>
                   </div>
+                </div>
+              ) : !rankLocked && (
+                <div className="card-foot">
+                  <span className="small">{fmt(t.baseQps)} qi/s per level</span>
+                  <button className="btn small contrib" disabled={!E.canObtainManual(s, i)} onClick={() => act((x) => E.obtainManual(x, i))}>Request · {fmt(t.manualCost)} contribution</button>
                 </div>
               )}
             </div>
@@ -336,24 +458,25 @@ function Techniques({ s, act }: { s: E.GameState; act: ActFn }) {
 
 function Hunt({ s, act }: { s: E.GameState; act: ActFn }) {
   const h = s.hunt;
-  const atk = E.playerAttack(s);
-  const maxHp = E.playerMaxHp(s);
+  const me = E.playerStats(s);
   return (
     <section>
       <h2 className="section-title">Beast hunts</h2>
-      <p className="muted small">Your cultivator fights on their own and earns spirit stones. Tap Strike to hit harder. If a beast is too strong you simply retreat and rest. Nothing is lost.</p>
+      <p className="muted small">Your cultivator fights on their own for spirit stones and sect contribution. Compare your stats with each beast before you go. If a beast is too strong you retreat and rest. Nothing is lost.</p>
+      <h3 className="mini-title">Your stats</h3>
+      <StatStrip stats={me} />
       {h.ground !== null && (
         <div className="battle">
           <div className="fighter">
             <b>You</b>
-            <div className="bar thin"><div className="fill hp" style={{ width: `${Math.max(0, h.playerHp / maxHp) * 100}%` }} /></div>
-            <span className="small muted">{h.recover > 0 ? `Resting ${Math.ceil(h.recover)}s` : `Attack ${fmt(atk)}/s`}</span>
+            <div className="bar thin"><div className="fill hp" style={{ width: `${Math.max(0, h.playerHp / me.vitality) * 100}%` }} /></div>
+            <span className="small muted">{h.recover > 0 ? `Resting ${Math.ceil(h.recover)}s` : `${fmt(Math.max(0, h.playerHp))} / ${fmt(me.vitality)} vitality · ${fmt(E.damagePerSec(me, HUNT_GROUNDS[h.ground].stats))} damage/s`}</span>
           </div>
           <div className="vs">vs</div>
           <div className="fighter">
             <b>{HUNT_GROUNDS[h.ground].beast}</b>
-            <div className="bar thin"><div className="fill enemy" style={{ width: `${h.respawn > 0 ? 0 : Math.max(0, h.beastHp / HUNT_GROUNDS[h.ground].hp) * 100}%` }} /></div>
-            <span className="small muted">{h.respawn > 0 ? 'Tracking the next beast…' : `Attack ${fmt(HUNT_GROUNDS[h.ground].atk)}/s`}</span>
+            <div className="bar thin"><div className="fill enemy" style={{ width: `${h.respawn > 0 ? 0 : Math.max(0, h.beastHp / HUNT_GROUNDS[h.ground].stats.vitality) * 100}%` }} /></div>
+            <span className="small muted">{h.respawn > 0 ? 'Tracking the next beast…' : `${fmt(Math.max(0, h.beastHp))} vitality · ${fmt(E.damagePerSec(HUNT_GROUNDS[h.ground].stats, me))} damage/s`}</span>
           </div>
           <div className="row">
             <button className="btn primary" disabled={h.recover > 0 || h.respawn > 0} onClick={() => act(E.strike)}>Strike</button>
@@ -366,9 +489,7 @@ function Hunt({ s, act }: { s: E.GameState; act: ActFn }) {
         {HUNT_GROUNDS.map((g, i) => {
           if (g.unlockRealm > s.realm + 1) return null;
           const locked = g.unlockRealm > s.realm;
-          const killTime = g.hp / atk;
-          const survive = maxHp / g.atk;
-          const verdict = locked ? '' : killTime < survive * 0.5 ? 'Easy' : killTime < survive ? 'Risky' : 'Too dangerous';
+          const m = E.matchup(s, i);
           return (
             <div key={g.id} className={`card ${locked ? 'locked' : ''} ${h.ground === i ? 'equipped' : ''}`}>
               <div className="card-head">
@@ -376,10 +497,14 @@ function Hunt({ s, act }: { s: E.GameState; act: ActFn }) {
                   <b>{g.name}</b>
                   <span className="small muted">{locked ? `Opens at ${REALMS[g.unlockRealm].name}` : `${g.beast} · ${fmt(g.stones * Math.pow(1.5, E.k(s, 'vein')))} stones each`}</span>
                 </div>
-                {!locked && <span className={`verdict v-${verdict.split(' ')[0].toLowerCase()}`}>{verdict}</span>}
+                {!locked && <span className={`verdict v-${m.verdict.split(' ')[0].toLowerCase()}`}>{m.verdict}</span>}
               </div>
-              {!locked && h.ground !== i && (
-                <button className="btn small" onClick={() => act((x) => E.setHunt(x, i))}>Hunt here</button>
+              {!locked && (
+                <>
+                  <StatStrip stats={me} compare={g.stats} />
+                  <span className="small muted">You would win in about {fmtTime(Math.max(1, m.killTime))}{isFinite(m.surviveTime) ? ` and can last about ${fmtTime(m.surviveTime)}` : ', and it cannot wear you down'}.</span>
+                  {h.ground !== i && <button className="btn small" onClick={() => act((x) => E.setHunt(x, i))}>Hunt here</button>}
+                </>
               )}
             </div>
           );
@@ -390,8 +515,8 @@ function Hunt({ s, act }: { s: E.GameState; act: ActFn }) {
 }
 
 function Elixirs({ s, act }: { s: E.GameState; act: ActFn }) {
-  const clarityCost = clarityPillCost(s.realm);
-  const longCost = longevityPillCost(s.realm, s.longevityUsed);
+  const clarityCost = clarityPillCost(s.realm) * E.elixirMult(s);
+  const longCost = longevityPillCost(s.realm, s.longevityUsed) * E.elixirMult(s);
   return (
     <section>
       <h2 className="section-title">Elixir pavilion</h2>
