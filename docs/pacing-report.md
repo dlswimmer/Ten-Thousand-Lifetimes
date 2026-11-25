@@ -41,6 +41,7 @@ All styles reincarnate voluntarily only after the Karma tab is open, when stuck 
 - **Tap worth 0.12s of qi instead of 1s** (still at least 1 qi, so it matters at the very start). Heavy tapping is now about +50% qi, not +400%. The floating number on the orb now shows the real tap gain.
 - **Hunt rewards x3, and they grow with your stage inside the ground's realm** (same 1.12x per stage as passive stones, capped at that realm's peak). The Hunt tab shows the new per-kill reward.
 - **Karma growth 1.22 → 1.18 per stage.** Lives step forward more gently, and the late Karma nodes (Unceasing Circulation at 1,500) are still reachable within a few hours.
+- **Seclusion now ages you, and you choose when to use it** (David's call). Time away is banked, up to the Deep Seclusion cap. On return a prompt shows the bank and lets you use 10 minutes, 1 hour or all of it, or save it for later. It previews the qi, stones and stages you'd gain and whether your lifespan would run out. If a life ends during seclusion you pass peacefully with full Karma, and the unused time stays banked for the next life. A chip in the header reopens the prompt any time.
 
 ## After the fixes
 
@@ -50,14 +51,13 @@ All styles reincarnate voluntarily only after the Karma tab is open, when stuck 
 | Active tapper | 3m | 8m | 27m | 56m | 32 | ~1.9h |
 | Hunt-focused | 4m | 24m | 56m | 2.0h | 10 | over 3h |
 | Elixir-focused | 3m | 16m | 38m | 1.5h | 10 | ~2.5h |
-| Idle | 3m | 3.1h | 6.2h | 20.4h | 327 | ~23h |
-| Casual | 3m | 14m | 2.0h | 4.0h | 14 | ~6.3h |
+| Idle (always uses seclusion) | 3m | 9.3h | 23.6h | 53.2h | 4 | over 72h |
+| Casual | 3m | 14m | 2.2h | 4.3h | 14 | ~8h |
 
-Tapping now helps (about 1.4x faster to the seal) without being required. Hunt-focused players earn the same first-life Karma as steady ones, though they are still about 1.5x slower to Nascent Soul because hunting gives up all qi. Idle life 1 dropped from 1,053 to 327 Karma.
+Tapping now helps (about 1.4x faster to the seal) without being required. Hunt-focused players earn the same first-life Karma as steady ones, though they are still about 1.5x slower to Nascent Soul because hunting gives up all qi. With aging seclusion, an idle player's first life now pays 4 Karma (it was 1,053), so a small first life holds for every style. Idle players are slower in real time than before, because each long seclusion now ends a life. That is the trade the prompt lets them choose.
 
 ## Suggestions not in the PR
 
-- **Idle first life.** Options: cap or soften the first life's Karma (for example 15 plus the square root of anything above it), let seclusion age you slowly but never end a life while you are away, or leave it. My recommendation is the soft cap: it keeps "no aging offline" and makes life 1 small for everyone.
 - **Give hunting its own reward.** Once blacksmithing lands, beasts should drop materials that only hunting provides. Stones alone can't make it a real path, since qi is what climbs realms.
 - **Content runway.** Even after the fixes, an active player finishes all five realms in 2 to 3 hours. Ascension and the next realms are the main thing that will stretch the game; until then, the Nascent Soul seal is the wall.
 - **Softer failed breakthroughs.** Losing 25% of qi instead of 50% would fit "never punished" better, and Insight already makes repeated attempts feel like progress.

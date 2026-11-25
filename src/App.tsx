@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as E from './game/engine';
 import {
   ELEMENT_GLYPH, FINAL_REALM, HUNT_GROUNDS, SECTS, CHORES, PHYSICAL_CHORES, ACTIVITY_NAMES, type Activity, STAT_NAMES, type Stats, ELEMENT_STATS, KARMA_NODES, LONGEVITY_PILL_YEARS, MAX_BREAK_PILLS,
   MAX_LONGEVITY_PILLS, PILLS, REALMS, ROOT_GRADES, STAGES_PER_REALM, TECHNIQUES, TECH_MILESTONES,
-  clarityPillCost, longevityPillCost,
+  clarityPillCost, longevityPillCost, SECONDS_PER_YEAR,
 } from './game/data';
 import { fmt, fmtPct, fmtTime } from './game/format';
 
@@ -17,15 +17,15 @@ const TABS: { id: Tab; label: string; glyph: string }[] = [
   { id: 'karma', label: 'Karma', glyph: '業' },
 ];
 
-function load(): { state: E.GameState; offline: E.OfflineReport | null } {
+function load(): { state: E.GameState; banked: number } {
   let state: E.GameState | null = null;
   try {
     const raw = localStorage.getItem(E.SAVE_KEY);
     if (raw) state = E.deserialize(raw);
   } catch { /* storage unavailable */ }
-  if (!state) return { state: E.newGame(), offline: null };
-  const offline = E.applyOffline(state);
-  return { state, offline };
+  if (!state) return { state: E.newGame(), banked: 0 };
+  const banked = E.bankOffline(state);
+  return { state, banked };
 }
 
 function save(s: E.GameState) {
@@ -43,7 +43,9 @@ export default function App() {
   const stateRef = useRef<E.GameState>(initial.current.state);
   const [, setFrame] = useState(0);
   const [tab, setTab] = useState<Tab>('cultivate');
-  const [offline, setOffline] = useState<E.OfflineReport | null>(initial.current.offline);
+  const [offline, setOffline] = useState<E.OfflineReport | null>(null);
+  // Time away is banked; ask whether to spend it as seclusion (it ages you) or keep it for later.
+  const [askSeclusion, setAskSeclusion] = useState(initial.current.banked > 0 && E.canSeclude(initial.current.state));
   const [confirmReincarnate, setConfirmReincarnate] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [floaters, setFloaters] = useState<Floater[]>([]);
@@ -63,8 +65,7 @@ export default function App() {
       const st = stateRef.current;
       if (dt > 5) {
         st.lastSeen = Date.now() - dt * 1000;
-        const rep = E.applyOffline(st);
-        if (rep) setOffline(rep);
+        if (E.bankOffline(st) > 0 && E.canSeclude(st)) setAskSeclusion(true);
       } else {
         E.tick(st, dt);
       }
@@ -127,6 +128,7 @@ export default function App() {
           {s.sect !== null && <span className="chip"><span className="dot contrib" />{fmt(s.contribution)} contribution</span>}
           {s.insight > 0 && <span className="chip"><span className="dot insight" />{fmt(s.insight)} insight</span>}
           {s.unlocked.includes('karma') && <span className="chip"><span className="dot karma" />{fmt(s.karma)} karma</span>}
+          {s.seclusionBank >= 60 && E.canSeclude(s) && <button className="chip" onClick={() => setAskSeclusion(true)}>☯ {fmtTime(s.seclusionBank)} seclusion</button>}
         </div>
       </header>
 
@@ -158,10 +160,18 @@ export default function App() {
         </nav>
       )}
 
+      {askSeclusion && !offline && E.canSeclude(s) && (
+        <SeclusionPrompt
+          s={s}
+          onClose={() => setAskSeclusion(false)}
+          onUse={(secs) => { const rep = E.spendSeclusion(stateRef.current, secs); setAskSeclusion(false); if (rep) setOffline(rep); rerender(); }}
+        />
+      )}
+
       {offline && (
         <Modal onClose={() => setOffline(null)}>
           <h2>You emerge from seclusion</h2>
-          <p className="muted">You meditated for {fmtTime(offline.seconds)}. Time does not touch you in seclusion: you did not age.</p>
+          <p className="muted">You spent {fmtTime(offline.seconds)} in seclusion and aged {Math.round(offline.years)} years.{offline.lifeEnded ? ' Your lifespan ran its course while you sat; the rest of your seclusion waits for your next life.' : ''}</p>
           <ul className="report">
             <li><b>{fmt(offline.qi)}</b> qi gathered</li>
             <li><b>{fmt(offline.stones)}</b> spirit stones</li>
@@ -207,6 +217,38 @@ export default function App() {
 }
 
 type ActFn = (fn: (st: E.GameState) => unknown) => void;
+
+const SECLUSION_STEPS = [10 * 60, 3600];
+
+function SeclusionPrompt({ s, onClose, onUse }: { s: E.GameState; onClose: () => void; onUse: (seconds: number) => void }) {
+  const bank = s.seclusionBank;
+  const [secs, setSecs] = useState(bank);
+  const preview = useMemo(() => E.previewSeclusion(s, secs), [s, secs]);
+  const yearsLeft = E.lifespan(s) - s.age;
+  const options = [...SECLUSION_STEPS.filter((x) => x < bank), bank];
+  return (
+    <Modal onClose={onClose}>
+      <h2>Enter seclusion?</h2>
+      <p className="muted">You have {fmtTime(bank)} of time away banked. Seclusion turns it into cultivation, but the years pass as they would if you sat here: about {Math.round(secs / SECONDS_PER_YEAR)} years for {fmtTime(secs)}. You have {Math.round(yearsLeft)} years left in this life.</p>
+      <div className="row">
+        {options.map((x) => (
+          <button key={x} className={`btn small ${x === secs ? 'primary' : ''}`} onClick={() => setSecs(x)}>{x === bank ? `All ${fmtTime(x)}` : x < 3600 ? `${x / 60} min` : `${x / 3600} hour`}</button>
+        ))}
+      </div>
+      {preview && (
+        <ul className="report">
+          <li>About <b>{fmt(preview.qi)}</b> qi and <b>{fmt(preview.stones)}</b> spirit stones</li>
+          {preview.stagesGained > 0 && <li>About <b>{preview.stagesGained}</b> stages{preview.realmsGained > 0 ? `, ${preview.realmsGained} realm breakthrough${preview.realmsGained > 1 ? 's' : ''}` : ''}</li>}
+          {preview.lifeEnded && <li>Your lifespan would run out after <b>{fmtTime(preview.seconds)}</b>. You would pass peacefully with your full Karma, and the rest stays banked for your next life.</li>}
+        </ul>
+      )}
+      <div className="row">
+        <button className="btn" onClick={onClose}>Save it for later</button>
+        <button className="btn primary" onClick={() => onUse(secs)}>Enter seclusion</button>
+      </div>
+    </Modal>
+  );
+}
 
 function Cultivate({ s, act, onCirculate, floaters }: { s: E.GameState; act: ActFn; onCirculate: (e: React.PointerEvent) => void; floaters: Floater[] }) {
   const req = E.stageReq(s);
