@@ -16,12 +16,12 @@ An idle/incremental cultivation game for mobile. Gather qi, break through realm 
 - Stats (attack, defense, vitality, speed) grow with your realm and your equipped manuals' elements, and are compared with each beast on hunts
 - Qi cultivation with 9 minor stages per realm and 5 qi realms (Qi Sensing to Nascent Soul). The first life is short on progress; Karma makes later lives faster
 - Chance-based breakthroughs; failures always grant Insight, which raises the next attempt's odds
-- Lifespan that grows with each realm. When it runs out you pass peacefully and get the same Karma as a voluntary reincarnation, so there is never a penalty. Offline seclusion does not age you.
+- Lifespan that grows with each realm. When it runs out you pass peacefully and get the same Karma as a voluntary reincarnation, so there is never a penalty
 - Manuals with levels, milestones and mastery; a spiritual root rolled each life
 - Karma tree with 13 nodes, including automation (auto-advance, auto-breakthrough)
 - Auto-battle beast hunts for spirit stones and some contribution (retreat costs nothing)
 - Elixirs for breakthrough chance and extra years
-- Offline progress (8 hours, more with Karma), autosave, export and import
+- Time away is banked as seclusion (8 hours, more with Karma). When you return the game asks whether to use it now, part of it, or save it for later; seclusion ages you as play does, and the preview shows what you would gain and whether your life would end. Autosave, export and import
 
 ## Development
 
@@ -31,6 +31,7 @@ npm run dev      # play at http://localhost:5173
 npm run build    # production build in dist/
 npm run lint
 npm run sim -- 3 # headless balance simulation for 3 in-game hours
+npm run sim:styles -- 8 7  # compare play styles (tapper, idle, hunter, elixirs...) over 8h, 7 seeds
 ```
 
 All tunable numbers (costs, rates, realms, techniques, Karma nodes) live in `src/game/data.ts`. Game rules live in `src/game/engine.ts`, which has no UI code so the simulator can run it directly.

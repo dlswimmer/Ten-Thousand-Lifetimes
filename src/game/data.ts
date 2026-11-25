@@ -4,7 +4,7 @@ export const SECONDS_PER_YEAR = 4;
 export const START_AGE = 16;
 export const STAGES_PER_REALM = 9;
 export const OFFLINE_BASE_CAP_S = 8 * 3600;
-export const OFFLINE_AGE_RATE = 0; // seclusion never ages you: time paces the game but never pressures it
+export const OFFLINE_AGE_RATE = 1; // seclusion ages you like play does, so it is banked and you choose when to use it
 
 export interface Realm {
   name: string;
@@ -189,7 +189,7 @@ export const REQ_BASE = 25;
 export const REQ_GROWTH = 1.65;
 export const REQ_REALM_JUMP = 3;
 
-export const TAP_SECONDS = 1; // a Circulate tap is worth this many seconds of qi
+export const TAP_SECONDS = 0.12; // a Circulate tap is worth this many seconds of qi (always at least 1 qi)
 
 // Breakthrough
 export const PILL_BREAK_BONUS = 0.12;
@@ -224,7 +224,7 @@ export function longevityPillCost(realm: number, used: number): number {
 }
 
 // Karma: earned on reincarnation from the peak stage reached that life.
-export const KARMA_GROWTH = 1.22;
+export const KARMA_GROWTH = 1.18;
 
 export interface KarmaNode {
   id: string;
@@ -249,7 +249,7 @@ export const KARMA_NODES: KarmaNode[] = [
   { id: 'autobreak', name: 'Heaven-Sensing Instinct', blurb: () => 'Automation: attempt breakthroughs when the odds are good', baseCost: 25, costGrowth: 1, maxLevel: 1, requires: 'autoadvance' },
   { id: 'fatedmeeting', name: 'Fated Meeting', blurb: () => 'Choose which sect\'s elder finds you in each new life', baseCost: 8, costGrowth: 1, maxLevel: 1 },
   { id: 'unceasing', name: 'Unceasing Circulation', blurb: (l) => l === 0 ? 'Qi keeps flowing at 20% while you do chores, hunt or train' : `Qi flows at ${l * 20}% during other activities (next ${Math.min(100, (l + 1) * 20)}%)`, baseCost: 1500, costGrowth: 2.5, maxLevel: 5 },
-  { id: 'seclusion', name: 'Deep Seclusion', blurb: (l) => `Offline gains capped at ${8 + l * 4}h (next ${8 + (l + 1) * 4}h)`, baseCost: 4, costGrowth: 2.5, maxLevel: 6 },
+  { id: 'seclusion', name: 'Deep Seclusion', blurb: (l) => `Bank up to ${8 + l * 4}h of seclusion (next ${8 + (l + 1) * 4}h)`, baseCost: 4, costGrowth: 2.5, maxLevel: 6 },
 ];
 
 export function memoryKeep(lvl: number): number {
@@ -305,6 +305,7 @@ export const STAT_NAMES: Record<keyof Stats, string> = { attack: 'Attack', defen
 export const HUNT_RECOVER_S = 8;
 export const HUNT_RESPAWN_S = 2; // a new beast appears this long after a kill
 export const STRIKE_MULT = 2;
+export const HUNT_STONE_MULT = 3; // hunting gives up qi, so a safe ground pays well above passive stones
 
 // Body cultivation: a second path that tempers flesh and bone instead of gathering qi.
 export const BODY_REALMS = ['Copper Skin', 'Iron Bone', 'Jade Marrow', 'Golden Blood', 'Diamond Body'];

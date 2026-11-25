@@ -233,3 +233,4 @@ button { font: inherit; color: inherit; }
 .chore-need { display: block; }
 .chore-need.ahead b { color: var(--jade); }
 .chore-need.behind b { color: var(--crimson); }
+button.chip { color: inherit; font: inherit; font-size: 12px; cursor: pointer; border-color: var(--gold); }

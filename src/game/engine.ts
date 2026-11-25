@@ -10,7 +10,7 @@ import {
   ELEMENT_STATS, STAT_REALM_MULT, STAT_STAGE_GROWTH, Stats, SECT_RANKS,
   BODY_REALMS, BODY_LEVELS_PER_REALM, BODY_COST_BASE, BODY_COST_GROWTH, VIGOR_BASE, VIGOR_STAGE_GROWTH,
   VIGOR_PER_KILL_SECONDS, VIGOR_TRAIN_SECONDS, PHYSICAL_CHORE_VIGOR, PHYSICAL_CHORES, BODY_STAT_GROWTH,
-  BODY_YEARS_PER_LEVEL, SECT_BODY_AFFINITY, type Activity,
+  BODY_YEARS_PER_LEVEL, SECT_BODY_AFFINITY, HUNT_STONE_MULT, type Activity,
 } from './data';
 
 export type LogKind = 'info' | 'good' | 'bad' | 'karma';
@@ -80,6 +80,7 @@ export interface GameState {
   log: LogEntry[];
   logSeq: number;
   lastSeen: number;
+  seclusionBank: number; // seconds of time away, waiting to be used as seclusion
   playSeconds: number;
 }
 
@@ -104,7 +105,7 @@ export function newGame(now = Date.now()): GameState {
     passing: null,
     bestRealm: 0,
     log: [], logSeq: 0,
-    lastSeen: now, playSeconds: 0,
+    lastSeen: now, seclusionBank: 0, playSeconds: 0,
   };
   s.root = rollRoot(s);
   s.fatedSect = fatedSectFor(s);
@@ -405,9 +406,14 @@ export function canReincarnate(s: GameState): boolean {
 
 // ---------- actions ----------
 
+/** Qi from one Circulate tap: a small boost that never outweighs simply meditating. */
+export function circulateGain(s: GameState): number {
+  return Math.max(1, qps(s) * TAP_SECONDS);
+}
+
 export function circulate(s: GameState) {
   if (s.passing || s.activity !== 'meditate') return;
-  const gain = Math.max(1, qps(s) * TAP_SECONDS);
+  const gain = circulateGain(s);
   s.qi += gain;
   s.lifeQi += gain;
 }
@@ -651,11 +657,19 @@ export function strike(s: GameState) {
   resolveKill(s);
 }
 
+/** Spirit stones per kill. Rewards grow as you climb the stages of the ground's own realm, so a ground
+ *  stays worth hunting until the next one opens. */
+export function huntReward(s: GameState, ground: number): number {
+  const g = HUNT_GROUNDS[ground];
+  const stagesIn = Math.min(STAGES_PER_REALM - 1, Math.max(0, globalStage(s) - g.unlockRealm * STAGES_PER_REALM));
+  return g.stones * HUNT_STONE_MULT * Math.pow(STAGE_STONE_MULT, stagesIn) * Math.pow(1.5, k(s, 'vein'));
+}
+
 function resolveKill(s: GameState) {
   const h = s.hunt;
   if (h.ground === null || h.beastHp > 0) return;
   const g = HUNT_GROUNDS[h.ground];
-  const reward = g.stones * Math.pow(1.5, k(s, 'vein'));
+  const reward = huntReward(s, h.ground);
   s.stones += reward;
   s.contribution += reward * HUNT_CONTRIB_SHARE;
   s.body.vigor += vigorPerSec(s) * VIGOR_PER_KILL_SECONDS * 0.5;
@@ -734,30 +748,67 @@ export interface OfflineReport {
   stagesGained: number;
   realmsGained: number;
   kills: number;
+  years: number; // how much you aged
+  lifeEnded: boolean;
 }
 
-/** Seclusion: replays time spent away. Offline time never ages you. */
-export function applyOffline(s: GameState, now = Date.now()): OfflineReport | null {
-  const away = Math.min(offlineCap(s), Math.max(0, (now - s.lastSeen) / 1000));
+/** Time away is banked as seclusion instead of applied straight away, so the player chooses when to use it. */
+export function bankOffline(s: GameState, now = Date.now()): number {
+  const away = Math.max(0, (now - s.lastSeen) / 1000);
   s.lastSeen = now;
-  if (away < 30 || s.passing || s.sect === null) return null;
-  const before = { qi: s.lifeQi, stones: s.stones, g: globalStage(s), realm: s.realm, kills: s.hunt.kills };
-  const steps = Math.min(4000, Math.ceil(away));
-  const dt = away / steps;
+  if (away < 30) return 0;
+  const before = s.seclusionBank;
+  s.seclusionBank = Math.min(offlineCap(s), s.seclusionBank + away);
+  return s.seclusionBank - before;
+}
+
+export function canSeclude(s: GameState): boolean {
+  return s.seclusionBank >= 1 && !s.passing && s.sect !== null;
+}
+
+/** Spends up to `seconds` of banked seclusion. You age as you would while playing; if your lifespan runs
+ *  out, the life ends peacefully with its full Karma and the rest of the bank waits for the next life. */
+export function spendSeclusion(s: GameState, seconds = s.seclusionBank): OfflineReport | null {
+  const want = Math.min(seconds, s.seclusionBank);
+  if (want < 1 || !canSeclude(s)) return null;
+  const before = { qi: s.lifeQi, stones: s.stones, g: globalStage(s), realm: s.realm, kills: s.hunt.kills, age: s.age };
+  const steps = Math.min(4000, Math.ceil(want));
+  const dt = want / steps;
   let stonesGained = 0;
-  for (let i = 0; i < steps; i++) {
+  let used = 0;
+  for (let i = 0; i < steps && !s.passing; i++) {
     const st = s.stones;
     tick(s, dt, OFFLINE_AGE_RATE);
+    used += dt;
     stonesGained += Math.max(0, s.stones - st);
   }
+  s.seclusionBank = Math.max(0, s.seclusionBank - used);
   return {
-    seconds: away,
+    seconds: used,
     qi: s.lifeQi - before.qi,
     stones: stonesGained,
     stagesGained: globalStage(s) - before.g,
     realmsGained: s.realm - before.realm,
     kills: s.hunt.kills - before.kills,
+    years: s.age - before.age,
+    lifeEnded: s.passing !== null,
   };
+}
+
+/** What using `seconds` of seclusion would bring, without changing the game. Breakthroughs are chance-based, so it is an estimate. */
+export function previewSeclusion(s: GameState, seconds = s.seclusionBank): OfflineReport | null {
+  const copy: GameState = JSON.parse(JSON.stringify(s));
+  copy.log = [];
+  const saved = Math.random;
+  let seed = 12345;
+  Math.random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  try { return spendSeclusion(copy, seconds); } finally { Math.random = saved; }
+}
+
+/** Banks time away and spends it at once (used by the simulator for players who always accept seclusion). */
+export function applyOffline(s: GameState, now = Date.now()): OfflineReport | null {
+  bankOffline(s, now);
+  return spendSeclusion(s);
 }
 
 export const SAVE_KEY = 'ten-thousand-lifetimes-save-v5';
