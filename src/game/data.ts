@@ -189,7 +189,7 @@ export const REQ_BASE = 25;
 export const REQ_GROWTH = 1.65;
 export const REQ_REALM_JUMP = 3;
 
-export const TAP_SECONDS = 1; // a Circulate tap is worth this many seconds of qi
+export const TAP_SECONDS = 0.12; // a Circulate tap is worth this many seconds of qi (always at least 1 qi)
 
 // Breakthrough
 export const PILL_BREAK_BONUS = 0.12;
@@ -224,7 +224,7 @@ export function longevityPillCost(realm: number, used: number): number {
 }
 
 // Karma: earned on reincarnation from the peak stage reached that life.
-export const KARMA_GROWTH = 1.22;
+export const KARMA_GROWTH = 1.18;
 
 export interface KarmaNode {
   id: string;
@@ -305,6 +305,7 @@ export const STAT_NAMES: Record<keyof Stats, string> = { attack: 'Attack', defen
 export const HUNT_RECOVER_S = 8;
 export const HUNT_RESPAWN_S = 2; // a new beast appears this long after a kill
 export const STRIKE_MULT = 2;
+export const HUNT_STONE_MULT = 3; // hunting gives up qi, so a safe ground pays well above passive stones
 
 // Body cultivation: a second path that tempers flesh and bone instead of gathering qi.
 export const BODY_REALMS = ['Copper Skin', 'Iron Bone', 'Jade Marrow', 'Golden Blood', 'Diamond Body'];

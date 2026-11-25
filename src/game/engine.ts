@@ -10,7 +10,7 @@ import {
   ELEMENT_STATS, STAT_REALM_MULT, STAT_STAGE_GROWTH, Stats, SECT_RANKS,
   BODY_REALMS, BODY_LEVELS_PER_REALM, BODY_COST_BASE, BODY_COST_GROWTH, VIGOR_BASE, VIGOR_STAGE_GROWTH,
   VIGOR_PER_KILL_SECONDS, VIGOR_TRAIN_SECONDS, PHYSICAL_CHORE_VIGOR, PHYSICAL_CHORES, BODY_STAT_GROWTH,
-  BODY_YEARS_PER_LEVEL, SECT_BODY_AFFINITY, type Activity,
+  BODY_YEARS_PER_LEVEL, SECT_BODY_AFFINITY, HUNT_STONE_MULT, type Activity,
 } from './data';
 
 export type LogKind = 'info' | 'good' | 'bad' | 'karma';
@@ -405,9 +405,14 @@ export function canReincarnate(s: GameState): boolean {
 
 // ---------- actions ----------
 
+/** Qi from one Circulate tap: a small boost that never outweighs simply meditating. */
+export function circulateGain(s: GameState): number {
+  return Math.max(1, qps(s) * TAP_SECONDS);
+}
+
 export function circulate(s: GameState) {
   if (s.passing || s.activity !== 'meditate') return;
-  const gain = Math.max(1, qps(s) * TAP_SECONDS);
+  const gain = circulateGain(s);
   s.qi += gain;
   s.lifeQi += gain;
 }
@@ -651,11 +656,19 @@ export function strike(s: GameState) {
   resolveKill(s);
 }
 
+/** Spirit stones per kill. Rewards grow as you climb the stages of the ground's own realm, so a ground
+ *  stays worth hunting until the next one opens. */
+export function huntReward(s: GameState, ground: number): number {
+  const g = HUNT_GROUNDS[ground];
+  const stagesIn = Math.min(STAGES_PER_REALM - 1, Math.max(0, globalStage(s) - g.unlockRealm * STAGES_PER_REALM));
+  return g.stones * HUNT_STONE_MULT * Math.pow(STAGE_STONE_MULT, stagesIn) * Math.pow(1.5, k(s, 'vein'));
+}
+
 function resolveKill(s: GameState) {
   const h = s.hunt;
   if (h.ground === null || h.beastHp > 0) return;
   const g = HUNT_GROUNDS[h.ground];
-  const reward = g.stones * Math.pow(1.5, k(s, 'vein'));
+  const reward = huntReward(s, h.ground);
   s.stones += reward;
   s.contribution += reward * HUNT_CONTRIB_SHARE;
   s.body.vigor += vigorPerSec(s) * VIGOR_PER_KILL_SECONDS * 0.5;

@@ -31,6 +31,7 @@ npm run dev      # play at http://localhost:5173
 npm run build    # production build in dist/
 npm run lint
 npm run sim -- 3 # headless balance simulation for 3 in-game hours
+npm run sim:styles -- 8 7  # compare play styles (tapper, idle, hunter, elixirs...) over 8h, 7 seeds
 ```
 
 All tunable numbers (costs, rates, realms, techniques, Karma nodes) live in `src/game/data.ts`. Game rules live in `src/game/engine.ts`, which has no UI code so the simulator can run it directly.

@@ -85,7 +85,7 @@ export default function App() {
 
   const onCirculate = (e: React.PointerEvent) => {
     if (stateRef.current.activity !== 'meditate') { act((x) => E.setActivity(x, 'meditate')); return; }
-    const gain = Math.max(1, E.qps(stateRef.current));
+    const gain = E.circulateGain(stateRef.current);
     act(E.circulate);
     const rect = ((e.currentTarget as HTMLElement).parentElement ?? (e.currentTarget as HTMLElement)).getBoundingClientRect();
     const fid = ++floaterSeq.current;
@@ -577,7 +577,7 @@ function Hunt({ s, act }: { s: E.GameState; act: ActFn }) {
               <div className="card-head">
                 <div className="card-title">
                   <b>{g.name}</b>
-                  <span className="small muted">{locked ? `Opens at ${REALMS[g.unlockRealm].name}` : `${g.beast} · ${fmt(g.stones * Math.pow(1.5, E.k(s, 'vein')))} stones each`}</span>
+                  <span className="small muted">{locked ? `Opens at ${REALMS[g.unlockRealm].name}` : `${g.beast} · ${fmt(E.huntReward(s, i))} stones each`}</span>
                 </div>
                 {!locked && <span className={`verdict v-${m.verdict.split(' ')[0].toLowerCase()}`}>{m.verdict}</span>}
               </div>
